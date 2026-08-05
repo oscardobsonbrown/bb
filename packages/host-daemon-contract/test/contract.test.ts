@@ -1036,10 +1036,10 @@ describe("host-daemon local schemas", () => {
 });
 
 describe("host-daemon command schemas", () => {
-  // Provider usage gained model-scoped/duration-aware windows while provider
-  // runtimes also gained structured account rate-limit events. Version 74
-  // keeps both changes incompatible with daemons that implement protocol 73.
-  it("uses protocol version 74 for provider usage and rate-limit events", () => {
+  // Version 74 adds structured provider account rate-limit events to runtime
+  // session messages. Daemons on protocol 73 cannot send that event shape, so
+  // the bump forces an update before the server relies on it.
+  it("uses protocol version 74 for provider rate-limit events", () => {
     expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(74);
   });
 
