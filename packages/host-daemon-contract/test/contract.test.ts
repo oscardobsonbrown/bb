@@ -1036,12 +1036,11 @@ describe("host-daemon local schemas", () => {
 });
 
 describe("host-daemon command schemas", () => {
-  // Version 73 adds `workspace.discover_repos` and widens the provider-usage
-  // `error` variant with locally-known plan/account fields. An older daemon has
-  // no handler for the command and sends the narrower error shape, so the bump
-  // forces an update before the server relies on either.
-  it("uses protocol version 73 for repo discovery and usage plan fallback", () => {
-    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(73);
+  // Provider usage gained model-scoped/duration-aware windows while provider
+  // runtimes also gained structured account rate-limit events. Version 74
+  // keeps both changes incompatible with daemons that implement protocol 73.
+  it("uses protocol version 74 for provider usage and rate-limit events", () => {
+    expect(HOST_DAEMON_PROTOCOL_VERSION).toBe(74);
   });
 
   it("binds Plan cancellation to a required turn id and typed result", () => {
