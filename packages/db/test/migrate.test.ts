@@ -297,6 +297,7 @@ function dropRewindAddedTables(db: DbConnection): void {
   dropSteerActiveThreadOnEnterColumn(db);
   dropOnboardingCompletedAtColumn(db);
   dropFontFamilyColumns(db);
+  dropDashboardStatusColumn(db);
   // Thread visibility was added after the legacy checkpoints these tests
   // replay, so remove it before applying the forward migration chain again.
   db.$client.prepare("ALTER TABLE threads DROP COLUMN visibility").run();
@@ -527,6 +528,19 @@ function dropFontFamilyColumns(db: DbConnection): void {
   if (columns.has("buffer_font_family")) {
     db.$client
       .prepare("ALTER TABLE app_settings DROP COLUMN buffer_font_family")
+      .run();
+  }
+}
+
+// Migration 0089 adds the dashboard status column. Rewind scenarios that clear
+// its migration row must drop the column before replaying the migration.
+function dropDashboardStatusColumn(db: DbConnection): void {
+  const columns = db.$client
+    .prepare<[], TableInfoRow>("PRAGMA table_info(threads)")
+    .all();
+  if (columns.some((column) => column.name === "dashboard_status")) {
+    db.$client
+      .prepare("ALTER TABLE threads DROP COLUMN dashboard_status")
       .run();
   }
 }
@@ -1234,6 +1248,7 @@ describe("migrate", () => {
     // exactly what an upgrading user's database looks like.
     dropOnboardingCompletedAtColumn(db);
     dropFontFamilyColumns(db);
+    dropDashboardStatusColumn(db);
     // Delete by the journal timestamp, not a hash substring: migration hashes
     // are hex and can contain "0085" by coincidence.
     db.$client
@@ -1521,6 +1536,7 @@ describe("migrate", () => {
       dropOnboardingCompletedAtColumn(db);
       dropFontFamilyColumns(db);
       dropHostMaxPermissionModeColumn(db);
+      dropDashboardStatusColumn(db);
 
       migrate(db);
 
@@ -1918,6 +1934,7 @@ describe("migrate", () => {
       dropOnboardingCompletedAtColumn(db);
       dropFontFamilyColumns(db);
       dropHostMaxPermissionModeColumn(db);
+      dropDashboardStatusColumn(db);
 
       expect(
         db.$client
@@ -2012,6 +2029,7 @@ describe("migrate", () => {
       dropOnboardingCompletedAtColumn(db);
       dropFontFamilyColumns(db);
       dropHostMaxPermissionModeColumn(db);
+      dropDashboardStatusColumn(db);
 
       expect(() => migrate(db)).not.toThrow();
 
