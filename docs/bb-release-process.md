@@ -39,6 +39,13 @@ gh workflow run publish-bb-app.yml \
 
 Set `dry_run=false` to publish both npm and the signed desktop nightly.
 
+After a successful scheduled nightly release, `sync-upstream-main.yml` fetches
+`get-bb/bb:main` and opens or updates a pull request into this repository's
+`main` branch. It stops when Git cannot merge the upstream branch cleanly; it
+does not resolve conflicts automatically. It uses the built-in `GITHUB_TOKEN`
+with `contents: write` and `pull-requests: write` permissions. Pull-request
+checks created by this token may need manual approval or a manual rerun.
+
 ## Release Policy
 
 - Publish only from `main`.

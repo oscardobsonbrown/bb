@@ -1,0 +1,80 @@
+name: Sync upstream main
+
+on:
+  workflow_run:
+    workflows:
+      - Publish bb-app
+    types:
+      - completed
+  workflow_dispatch:
+
+concurrency:
+  group: sync-upstream-main
+  cancel-in-progress: false
+
+env:
+  UPSTREAM_REPOSITORY: get-bb/bb
+  UPSTREAM_BRANCH: main
+  TARGET_BRANCH: main
+  SYNC_BRANCH: automation/sync-upstream-main
+
+jobs:
+  sync:
+    name: Prepare upstream sync pull request
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'schedule' &&
+          github.event.workflow_run.head_branch == 'main'
+        )
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          token: ${{ github.token }}
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+
+      - name: Merge upstream main
+        env:
+          UPSTREAM_REPOSITORY: ${{ env.UPSTREAM_REPOSITORY }}
+          UPSTREAM_BRANCH: ${{ env.UPSTREAM_BRANCH }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream "https://github.com/${UPSTREAM_REPOSITORY}.git"
+          git fetch --no-tags upstream "${UPSTREAM_BRANCH}"
+
+          if git merge-base --is-ancestor "upstream/${UPSTREAM_BRANCH}" HEAD; then
+            echo "Upstream ${UPSTREAM_REPOSITORY}:${UPSTREAM_BRANCH} is already integrated."
+            exit 0
+          fi
+
+          git merge --no-edit --no-ff --no-commit "upstream/${UPSTREAM_BRANCH}"
+
+      - name: Open or update sync pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ github.token }}
+          base: ${{ env.TARGET_BRANCH }}
+          branch: ${{ env.SYNC_BRANCH }}
+          delete-branch: false
+          title: "Sync upstream/${{ env.UPSTREAM_BRANCH }}"
+          commit-message: "Sync upstream/${{ env.UPSTREAM_BRANCH }}"
+          body: |
+            This pull request was created after the nightly release completed.
+
+            It merges `${{ env.UPSTREAM_REPOSITORY }}:${{ env.UPSTREAM_BRANCH }}` into `${{ env.TARGET_BRANCH }}`.
+
+            Review the diff and required checks before merging. Conflicts stop the workflow and require manual resolution.
