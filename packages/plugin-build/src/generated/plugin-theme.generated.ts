@@ -42,6 +42,11 @@ export const PLUGIN_THEME_CSS = `@theme inline {
   --color-warning-text: var(--warning-text);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
+  --color-kanban-backlog: var(--kanban-backlog);
+  --color-kanban-in-progress: var(--kanban-in-progress);
+  --color-kanban-in-review: var(--kanban-in-review);
+  --color-kanban-done: var(--kanban-done);
+  --color-kanban-canceled: var(--kanban-canceled);
   --color-diff-added: var(--diff-added);
   /* GitHub's merged-PR purple — the one chromatic exception in the PR state
    * dots, matching the universal merged-PR color language. */
