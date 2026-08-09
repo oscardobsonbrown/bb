@@ -93,6 +93,7 @@ function makeThread(overrides: Partial<ThreadListEntry> = {}): ThreadListEntry {
     title: "Test thread",
     titleFallback: "Test thread",
     sectionId: null,
+    dashboardStatus: "backlog",
     status: "idle",
     parentThreadId: null,
     sourceThreadId: null,
