@@ -17,6 +17,7 @@ import { FileDiff as DiffView } from "@pierre/diffs/react";
 import { useIntersectionObserver } from "usehooks-ts";
 import { Button } from "@bb/shared-ui/button";
 import { cn } from "@bb/shared-ui/lib/utils";
+import type { DiffCommentDraftTarget } from "@/lib/prompt-draft";
 import { usePierreLineSelectionActions } from "./PierreLineSelectionActions.js";
 import {
   getWrappedImageIndex,
@@ -613,6 +614,10 @@ interface GitDiffCardRawDiffBodyProps {
   fileDiff: ParsedGitDiffFile;
   fileDiffOptions: Record<string, string | boolean | number>;
   onSelectionAddToChat?: (text: string) => void;
+  onSubmitDiffComment?: (
+    comment: string,
+    target: DiffCommentDraftTarget,
+  ) => void;
 }
 
 type DiffPatchDisplayStyle = "unified" | "split";
@@ -1119,9 +1124,11 @@ function GitDiffCardRawDiffBody({
   fileDiff,
   fileDiffOptions,
   onSelectionAddToChat,
+  onSubmitDiffComment,
 }: GitDiffCardRawDiffBodyProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const displayStyle = getDiffPatchDisplayStyle(fileDiffOptions);
+  const filePath = normalizeGitDiffPath(fileDiff.name) ?? fileDiff.name;
   const buildSelectionText = useCallback(
     (range: SelectedLineRange) =>
       buildDiffLineSelectionText({ displayStyle, fileDiff, range }),
@@ -1140,18 +1147,27 @@ function GitDiffCardRawDiffBody({
     buildFallbackSelectionText,
     buildSelectionText,
     containerRef,
-    enabled: onSelectionAddToChat !== undefined,
+    diffComment:
+      onSubmitDiffComment === undefined
+        ? undefined
+        : { filePath, onSubmit: onSubmitDiffComment },
+    enabled:
+      onSelectionAddToChat !== undefined || onSubmitDiffComment !== undefined,
     onSelectionAddToChat,
   });
   const options = useMemo<FileDiffOptions<undefined>>(
     () => ({
       ...fileDiffOptions,
-      enableGutterUtility: onSelectionAddToChat !== undefined,
-      enableLineSelection: onSelectionAddToChat !== undefined,
+      enableGutterUtility:
+        onSelectionAddToChat !== undefined || onSubmitDiffComment !== undefined,
+      enableLineSelection:
+        onSelectionAddToChat !== undefined || onSubmitDiffComment !== undefined,
       lineHoverHighlight:
-        onSelectionAddToChat === undefined ? "disabled" : "number",
+        onSelectionAddToChat === undefined && onSubmitDiffComment === undefined
+          ? "disabled"
+          : "number",
       onGutterUtilityClick:
-        onSelectionAddToChat === undefined
+        onSelectionAddToChat === undefined && onSubmitDiffComment === undefined
           ? undefined
           : lineSelectionActions.onGutterUtilityClick,
       onLineSelectionChange: lineSelectionActions.onLineSelectionChange,
@@ -1165,6 +1181,7 @@ function GitDiffCardRawDiffBody({
       lineSelectionActions.onLineSelectionEnd,
       lineSelectionActions.onLineSelectionStart,
       onSelectionAddToChat,
+      onSubmitDiffComment,
     ],
   );
   return (
@@ -1180,6 +1197,16 @@ function GitDiffCardRawDiffBody({
           className="git-diff-view"
           fileDiff={fileDiff}
           options={options}
+          lineAnnotations={
+            lineSelectionActions.commentAnnotation === null
+              ? undefined
+              : [lineSelectionActions.commentAnnotation]
+          }
+          renderAnnotation={
+            lineSelectionActions.commentInput === null
+              ? undefined
+              : () => lineSelectionActions.commentInput
+          }
           selectedLines={lineSelectionActions.selectedRange}
         />
       </div>
@@ -1195,6 +1222,10 @@ interface GitDiffCardSvgBodyProps {
   fileDiffLabel: string;
   fileDiffOptions: Record<string, string | boolean | number>;
   onSelectionAddToChat?: (text: string) => void;
+  onSubmitDiffComment?: (
+    comment: string,
+    target: DiffCommentDraftTarget,
+  ) => void;
 }
 
 function GitDiffCardSvgBody({
@@ -1204,6 +1235,7 @@ function GitDiffCardSvgBody({
   fileDiffLabel,
   fileDiffOptions,
   onSelectionAddToChat,
+  onSubmitDiffComment,
 }: GitDiffCardSvgBodyProps) {
   return displayMode === "preview" ? (
     <GitDiffCardImageBody
@@ -1216,6 +1248,7 @@ function GitDiffCardSvgBody({
       fileDiff={fileDiff}
       fileDiffOptions={fileDiffOptions}
       onSelectionAddToChat={onSelectionAddToChat}
+      onSubmitDiffComment={onSubmitDiffComment}
     />
   );
 }
@@ -1232,6 +1265,10 @@ export interface GitDiffCardBodyProps {
   /** Removes card-edge rounding when the diff fills its parent surface. */
   flushEdges?: boolean;
   onSelectionAddToChat?: (text: string) => void;
+  onSubmitDiffComment?: (
+    comment: string,
+    target: DiffCommentDraftTarget,
+  ) => void;
 }
 
 /**
@@ -1250,6 +1287,7 @@ export function GitDiffCardBody({
   reservesCollapseGutter,
   flushEdges = false,
   onSelectionAddToChat,
+  onSubmitDiffComment,
 }: GitDiffCardBodyProps) {
   const {
     bodySentinelRef,
@@ -1309,12 +1347,14 @@ export function GitDiffCardBody({
           fileDiffLabel={fileDiffLabel}
           fileDiffOptions={fileDiffOptions}
           onSelectionAddToChat={onSelectionAddToChat}
+          onSubmitDiffComment={onSubmitDiffComment}
         />
       ) : (
         <GitDiffCardRawDiffBody
           fileDiff={enrichedFileDiff}
           fileDiffOptions={fileDiffOptions}
           onSelectionAddToChat={onSelectionAddToChat}
+          onSubmitDiffComment={onSubmitDiffComment}
         />
       )}
     </div>
