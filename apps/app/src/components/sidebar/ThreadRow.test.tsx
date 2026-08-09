@@ -76,6 +76,7 @@ function createThread(
     title: "Thread",
     titleFallback: "Thread",
     sectionId: null,
+    dashboardStatus: "backlog",
     status: "idle",
     parentThreadId: null,
     sourceThreadId: null,

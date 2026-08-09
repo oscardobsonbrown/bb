@@ -167,6 +167,7 @@ const OPTIONAL_SERVER_FIELD_GROUPS: readonly OptionalServerFieldGroup[] = [
       "Thread PATCH requests omit fields that should be left unchanged; null explicitly clears nullable values.",
     fields: [
       "updateThreadRequestSchema.model",
+      "updateThreadRequestSchema.dashboardStatus",
       "updateThreadRequestSchema.sectionId",
       "updateThreadRequestSchema.parentThreadId",
       "updateThreadRequestSchema.reasoningLevel",
@@ -835,6 +836,7 @@ describe("server-contract canonical schemas", () => {
           title: "Pending thread",
           titleFallback: "Pending thread",
           sectionId: null,
+          dashboardStatus: "backlog",
           status: "idle",
           parentThreadId: null,
           sourceThreadId: null,
