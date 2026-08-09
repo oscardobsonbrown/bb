@@ -447,6 +447,9 @@ describe("electron-builder signing config", () => {
     expect(config.productName).toBe("bb Nightly");
     expect(config.artifactName).toBe("bb-nightly-${version}-${arch}.${ext}");
     expect(config.mac.icon).toBe("assets/icon-nightly.icns");
+    expect(nightlyRelease.releasePageUrl).toBe(
+      "https://github.com/get-bb/bb/releases/tag/desktop-nightly",
+    );
     await expect(
       access(resolve(desktopPackageRoot, config.mac.icon)),
     ).resolves.toBeUndefined();

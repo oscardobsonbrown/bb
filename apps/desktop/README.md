@@ -108,10 +108,12 @@ immutable releases and `desktop-latest` for the moving pointer.
 ## Nightly channel
 
 The scheduled `publish-bb-app.yml` workflow runs from `main` every day at
-3:00 AM Pacific (`America/Los_Angeles`, including daylight-saving changes). It
-derives a unique version such as `0.34.1-nightly.<run-id>.<attempt>` without
-committing that version, publishes `bb-app` with the npm `nightly` dist-tag,
-and builds the desktop app from that same lockstep version.
+2:00 AM AWST (`Australia/Perth`). It first compares the current tree with the
+last successful `desktop-nightly` release. If there are no file changes, the
+workflow stops without building or publishing. For a changed tree, it derives
+a unique version such as `0.34.1-nightly.<run-id>.<attempt>` without committing
+that version, publishes `bb-app` with the npm `nightly` dist-tag, and builds the
+desktop app from that same lockstep version.
 
 To publish or dry-run the channel manually from `main`, dispatch the same
 workflow with `npm_tag=nightly`. A non-dry run publishes both npm and desktop;
@@ -121,13 +123,15 @@ The nightly desktop is a separate installation:
 
 - product name: `bb Nightly`
 - bundle identifier: `dev.bb.desktop.nightly`
-- app/update release: `desktop-nightly`
+- immutable release: `desktop-v<version>`
+- app/update release: `desktop-nightly` (moving pointer)
 - update metadata: `nightly-mac.yml`
 - icon: `assets/icon-nightly.icns` and `assets/icon-nightly.png`
 
-Download it from
+Download the current build from
 [`desktop-nightly`](https://github.com/get-bb/bb/releases/tag/desktop-nightly)
-or run the CLI build with:
+or open an individual immutable release such as
+`desktop-v0.34.1-nightly.123.1`. Run the CLI build with:
 
 ```bash
 npx bb-app@nightly
@@ -179,6 +183,12 @@ JSON feed can show "update available" even when CI has published metadata only,
 while the Electron updater only flips the toast to "ready to install" after a
 signed update has actually downloaded. Local dev builds skip Electron auto-update
 unless `BB_DESKTOP_AUTO_UPDATE=1` is set.
+
+The release page is for people; the updater uses its release assets. Stable
+uses `https://github.com/get-bb/bb/releases/download/desktop-latest/`, and
+nightly uses the equivalent `desktop-nightly` directory. The checker reads
+`desktop-version.json`; `electron-updater` reads the channel's macOS metadata,
+downloads the signed archive, and installs it after the user relaunches.
 
 `bb Nightly` follows the equivalent isolated `desktop-nightly` release and
 `nightly-mac.yml`; it never reads or moves the stable feed. The scheduled

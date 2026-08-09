@@ -16,13 +16,16 @@ a normal release must run both. Do not consider a release complete until the
 desktop app is published at the same version (see "Publish The Desktop App").
 
 The automated nightly channel is the exception to the manual stable flow. The
-scheduled path in `publish-bb-app.yml` derives a unique next-patch prerelease,
+scheduled path in `publish-bb-app.yml` runs at 2:00 AM AWST and first compares
+the current `main` tree with the last successful `desktop-nightly` tag. It skips
+unchanged trees. For changed trees, it derives a unique next-patch prerelease,
 publishes it under npm's `nightly` dist-tag, then builds and publishes the
-separately installable `bb Nightly` app at `desktop-nightly`. It does not commit
-the generated version or move either stable `latest` pointer. If the
-`npm-release` GitHub environment requires approval, scheduled runs will wait
-for that approval; remove the reviewer gate only if fully unattended nightly
-publishing is intended.
+separately installable `bb Nightly` app. Each build gets an immutable
+`desktop-v<version>` GitHub release, and `desktop-nightly` is refreshed as the
+moving updater feed. It does not commit the generated version or move either
+stable `latest` pointer. If the `npm-release` GitHub environment requires
+approval, scheduled runs will wait for that approval; remove the reviewer gate
+only if fully unattended nightly publishing is intended.
 
 The same channel can be exercised manually:
 
