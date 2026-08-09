@@ -735,6 +735,60 @@
   }
 }
 
+/* The status line stays still for scanning and only becomes a marquee when a
+ * user deliberately hovers it. The duplicated label keeps the loop seamless. */
+.agent-sidebar-status-scroller {
+  display: block;
+  max-width: 9ch;
+  overflow: hidden;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.agent-sidebar-status-track {
+  display: inline-flex;
+  min-width: max-content;
+  transform: translateX(0);
+}
+
+.agent-sidebar-status-marquee-segment {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.agent-sidebar-status-marquee-detail,
+.agent-sidebar-status-track
+  > .agent-sidebar-status-marquee-segment
+  + .agent-sidebar-status-marquee-segment {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .agent-sidebar-status-scroller:hover .agent-sidebar-status-track {
+    animation: agent-sidebar-status-scroll 5.5s linear infinite;
+  }
+
+  .agent-sidebar-status-scroller:hover .agent-sidebar-status-marquee-detail,
+  .agent-sidebar-status-scroller:hover
+    .agent-sidebar-status-track
+    > .agent-sidebar-status-marquee-segment
+    + .agent-sidebar-status-marquee-segment {
+    display: inline-flex;
+  }
+}
+
+@keyframes agent-sidebar-status-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
 .bb-search-flash {
   border-radius: var(--radius-lg, 0.5rem);
   animation: bb-search-flash 1.6s ease-out;
@@ -742,6 +796,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .bb-search-flash {
+    animation: none;
+  }
+
+  .agent-sidebar-status-track {
     animation: none;
   }
 }
