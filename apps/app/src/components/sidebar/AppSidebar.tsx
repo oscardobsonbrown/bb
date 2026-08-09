@@ -28,6 +28,7 @@ import { useThreadListProvider } from "./threadListProvider";
 import { PluginNavSidebarItems } from "@/components/plugin/PluginNavSidebarItems";
 import { PluginSidebarFooterActions } from "@/components/plugin/PluginSidebarFooterActions";
 import { SidebarUpdatesBadge } from "./SidebarUpdatesBadge";
+import { AgentSidebarPanel } from "./AgentSidebarPanel";
 import { SidebarHistoryNavigationControls } from "./SidebarHistoryNavigationControls";
 import { useQuickCreateProjectController } from "@/hooks/useQuickCreateProject";
 import {
@@ -440,6 +441,7 @@ export function AppSidebar({
         </SidebarContent>
         <SidebarFooter className="relative">
           <OverflowFade placement="above" tone="sidebar" size="sm" />
+          <AgentSidebarPanel onNavigate={closeOnMobile} />
           {/* The footer holds a variable number of plugin action buttons, so a
            * narrowed sidebar plus several plugins can no longer fit the action
            * row and the update chips on one line. `flex-wrap-reverse` plus the
