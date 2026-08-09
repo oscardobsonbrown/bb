@@ -20,6 +20,7 @@ export {
 export {
   capitalize,
   durationToCompactString,
+  formatCompactDiffCount,
   formatDiffCount,
   formatDiffStatsText,
 } from "./format-helpers.js";
