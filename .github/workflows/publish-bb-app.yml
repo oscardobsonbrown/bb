@@ -4,8 +4,8 @@ name: Publish bb-app
 
 on:
   schedule:
-    - cron: "0 3 * * *"
-      timezone: "America/Los_Angeles"
+    - cron: "0 2 * * *"
+      timezone: "Australia/Perth"
   workflow_dispatch:
     inputs:
       npm_tag:
@@ -45,8 +45,72 @@ env:
   RELEASE_NPM_TAG: ${{ github.event_name == 'schedule' && 'nightly' || inputs.npm_tag }}
 
 jobs:
+  detect-nightly-changes:
+    name: Check for nightly changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      has_changes: ${{ steps.detect.outputs.has_changes }}
+      baseline_sha: ${{ steps.detect.outputs.baseline_sha }}
+
+    steps:
+      - name: Checkout repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compare with the last nightly release
+        id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" != "schedule" ]]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "baseline_sha=manual-dispatch" >> "$GITHUB_OUTPUT"
+            echo "Manual dispatch: continuing with the requested release."
+            exit 0
+          fi
+
+          nightly_tag="desktop-nightly"
+          baseline_sha="$(git rev-parse "refs/tags/${nightly_tag}^{commit}" 2>/dev/null || true)"
+          echo "baseline_sha=${baseline_sha:-none}" >> "$GITHUB_OUTPUT"
+
+          if [[ -z "$baseline_sha" ]]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "No ${nightly_tag} tag exists; the first scheduled run will publish a release."
+            exit 0
+          fi
+
+          if git diff --quiet "${baseline_sha}..${HEAD_SHA}" --; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "No file changes since ${nightly_tag} (${baseline_sha}); skipping the nightly build."
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "Changes found since ${nightly_tag} (${baseline_sha}); continuing with the nightly build."
+          fi
+
+      - name: Summarize nightly change check
+        env:
+          HAS_CHANGES: ${{ steps.detect.outputs.has_changes }}
+          BASELINE_SHA: ${{ steps.detect.outputs.baseline_sha }}
+        run: |
+          {
+            echo "## Nightly change check"
+            echo
+            echo "- changes since last nightly: \`$HAS_CHANGES\`"
+            echo "- baseline: \`$BASELINE_SHA\`"
+            echo "- commit: \`${GITHUB_SHA}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   publish:
     name: Publish bb-app
+    needs: detect-nightly-changes
+    if: ${{ needs.detect-nightly-changes.outputs.has_changes == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: npm-release
@@ -327,10 +391,44 @@ jobs:
             apps/desktop/release/desktop-version.json
           if-no-files-found: error
 
-      - name: Publish moving nightly desktop release
+      - name: Publish immutable nightly desktop release
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.nightly_version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          immutable_tag="desktop-v${VERSION}"
+          release_dir="apps/desktop/release"
+          release_assets=(
+            "$release_dir/desktop-version.json"
+            "$release_dir/nightly-mac.yml"
+            "$release_dir"/*.dmg
+            "$release_dir"/*.zip
+            "$release_dir"/*.blockmap
+          )
+
+          if git show-ref --verify --quiet "refs/tags/${immutable_tag}"; then
+            echo "::error::Tag ${immutable_tag} already exists; refusing to replace an immutable nightly release."
+            exit 1
+          fi
+          if gh release view "$immutable_tag" >/dev/null 2>&1; then
+            echo "::error::Release ${immutable_tag} already exists; refusing to replace an immutable nightly release."
+            exit 1
+          fi
+
+          git tag "$immutable_tag" "$GITHUB_SHA"
+          git push origin "refs/tags/${immutable_tag}"
+          gh release create "$immutable_tag" "${release_assets[@]}" \
+            --target "$GITHUB_SHA" \
+            --title "bb Nightly ${VERSION}" \
+            --notes "Automated bb Nightly build from main at ${GITHUB_SHA}. Nightly builds may be unstable." \
+            --prerelease \
+            --latest=false
+
+      - name: Refresh moving nightly updater feed
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
@@ -351,7 +449,7 @@ jobs:
             gh release edit "$nightly_tag" \
               --target "$GITHUB_SHA" \
               --title "bb Nightly" \
-              --notes "Latest automated bb Nightly build from main. Nightly builds may be unstable." \
+              --notes "Latest automated bb Nightly build from main at ${GITHUB_SHA}. Nightly builds may be unstable." \
               --prerelease \
               --latest=false
 
@@ -366,7 +464,7 @@ jobs:
             gh release create "$nightly_tag" "${release_assets[@]}" \
               --target "$GITHUB_SHA" \
               --title "bb Nightly" \
-              --notes "Latest automated bb Nightly build from main. Nightly builds may be unstable." \
+              --notes "Latest automated bb Nightly build from main at ${GITHUB_SHA}. Nightly builds may be unstable." \
               --prerelease \
               --latest=false
           fi
@@ -380,7 +478,8 @@ jobs:
             echo
             echo "- version: \`$VERSION\`"
             echo "- app identity: \`dev.bb.desktop.nightly\`"
-            echo "- release: https://github.com/get-bb/bb/releases/tag/desktop-nightly"
+            echo "- immutable release: https://github.com/get-bb/bb/releases/tag/desktop-v${VERSION}"
+            echo "- update feed release: https://github.com/get-bb/bb/releases/tag/desktop-nightly"
             echo "- update feed: https://github.com/get-bb/bb/releases/download/desktop-nightly/desktop-version.json"
             echo "- retention for workflow artifacts: 14 days"
           } >> "$GITHUB_STEP_SUMMARY"

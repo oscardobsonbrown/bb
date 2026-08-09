@@ -5,6 +5,7 @@ export interface DesktopReleaseInfo {
   channel: DesktopReleaseChannel;
   iconFileName: "icon.png" | "icon-nightly.png";
   releaseTag: "desktop-latest" | "desktop-nightly";
+  releasePageUrl: string;
   updateReleaseBaseUrl: string;
 }
 
@@ -13,12 +14,14 @@ export function createDesktopReleaseInfo(
 ): DesktopReleaseInfo {
   const nightly = channel === "nightly";
   const releaseTag = nightly ? "desktop-nightly" : "desktop-latest";
+  const releasePageUrl = `https://github.com/get-bb/bb/releases/tag/${releaseTag}`;
 
   return {
     applicationName: nightly ? "bb Nightly" : "bb",
     channel,
     iconFileName: nightly ? "icon-nightly.png" : "icon.png",
     releaseTag,
+    releasePageUrl,
     updateReleaseBaseUrl: `https://github.com/get-bb/bb/releases/download/${releaseTag}/`,
   };
 }
@@ -46,6 +49,8 @@ export const DESKTOP_RELEASE_INFO = createDesktopReleaseInfo(
 );
 export const DESKTOP_UPDATE_RELEASE_BASE_URL =
   DESKTOP_RELEASE_INFO.updateReleaseBaseUrl;
+export const DESKTOP_UPDATE_RELEASE_PAGE_URL =
+  DESKTOP_RELEASE_INFO.releasePageUrl;
 export const DESKTOP_UPDATE_CHANNEL = DESKTOP_RELEASE_CHANNEL;
 export const DESKTOP_UPDATE_FEED_URL = `${DESKTOP_UPDATE_RELEASE_BASE_URL}desktop-version.json`;
 

@@ -535,9 +535,9 @@ describe("ThreadDetailSecondaryContent compact drawer settling", () => {
     const mainWorkspace = screen.getByLabelText("Thread workspace");
     const sidebar = screen.getByLabelText("Workspace sidebar");
     expect(screen.queryByTestId("header")).toBeNull();
-    expect(mainWorkspace.contains(screen.getByTestId("thread-timeline-pane"))).toBe(
-      true,
-    );
+    expect(
+      mainWorkspace.contains(screen.getByTestId("thread-timeline-pane")),
+    ).toBe(true);
     expect(mainWorkspace.contains(sidebar)).toBe(false);
   });
 
