@@ -29,11 +29,10 @@ on:
         type: boolean
         default: true
 
-run-name: ${{ github.event_name == 'schedule' && 'Publish bb-app + desktop nightly' || format('Publish bb-app ({0}{1})', inputs.npm_tag, inputs.dry_run && ', dry run' || '') }}
+run-name: ${{ github.event_name == 'schedule' && 'Build bb Nightly desktop' || format('Publish bb-app ({0}{1})', inputs.npm_tag, inputs.dry_run && ', dry run' || '') }}
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: publish-bb-app-${{ (github.event_name == 'schedule' || inputs.npm_tag == 'nightly') && 'nightly' || github.ref }}
@@ -110,10 +109,13 @@ jobs:
   publish:
     name: Publish bb-app
     needs: detect-nightly-changes
-    if: ${{ needs.detect-nightly-changes.outputs.has_changes == 'true' }}
+    if: ${{ github.event_name != 'schedule' && needs.detect-nightly-changes.outputs.has_changes == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: npm-release
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - name: Require main branch
@@ -284,8 +286,8 @@ jobs:
 
   nightly-desktop:
     name: Publish bb Nightly desktop
-    if: ${{ github.event_name == 'schedule' || (inputs.npm_tag == 'nightly' && inputs.dry_run == false) }}
-    needs: publish
+    if: ${{ needs.detect-nightly-changes.outputs.has_changes == 'true' && (github.event_name == 'schedule' || (inputs.npm_tag == 'nightly' && inputs.dry_run == false)) }}
+    needs: detect-nightly-changes
     runs-on: macos-15
     timeout-minutes: 45
     permissions:
