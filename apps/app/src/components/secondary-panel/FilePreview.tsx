@@ -469,10 +469,10 @@ export function FilePreview({
     toggleKind === null ? "preview" : viewMode;
   const usesCodeLayout = usesCodeViewLayout(state, bodyViewMode);
   const showLineOverflowToggle = usesCodeLayout;
-  // The markdown preview renders on a raised "paper" surface that should fill
-  // the panel to the bottom even for short documents. `min-h-full` (vs the
-  // iframe layout's `h-full min-h-0`) keeps the column growable, so long
-  // documents still scroll the outer panel rather than an inner box.
+  // The Markdown document should fill the panel to the bottom even when it is
+  // short. `min-h-full` (vs the iframe layout's `h-full min-h-0`) keeps the
+  // column growable, so long documents still scroll the outer panel rather
+  // than an inner box.
   const usesMarkdownPreviewLayout =
     state.kind === "ready" &&
     state.textPreviewKind === "markdown" &&
@@ -893,9 +893,10 @@ function MarkdownFilePreview({
       className="contents"
       onSelectionAddToChat={onSelectionAddToChat}
     >
-      <div className="flex-auto bg-background px-4 py-4">
+      <div className="markdown-document-shell flex-auto bg-background">
         <MarkdownPreview
           allowHtml
+          className="markdown-document"
           content={file.contents}
           urlTransform={urlTransform}
           linkRouting={markdownLinkRouting}

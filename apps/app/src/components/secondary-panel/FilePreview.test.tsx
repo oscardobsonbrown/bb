@@ -146,6 +146,26 @@ describe("FilePreview", () => {
     expect(onRefresh).toHaveBeenCalledOnce();
   });
 
+  it("renders Markdown files with document presentation", () => {
+    const { container } = render(
+      <FilePreview
+        path="README.md"
+        state={{
+          kind: "ready",
+          file: { name: "README.md", contents: "# Preview" },
+          lineRange: null,
+          textPreviewKind: "markdown",
+        }}
+      />,
+    );
+
+    expect(
+      container
+        .querySelector("[data-markdown-preview]")
+        ?.classList.contains("markdown-document"),
+    ).toBe(true);
+  });
+
   it("disables the manual refresh action while a refresh is running", () => {
     render(
       <FilePreview
