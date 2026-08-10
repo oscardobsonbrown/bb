@@ -92,21 +92,23 @@ function WorkspaceTabLabel({ label }: { label: string }) {
   const [metrics, setMetrics] = useState<TabLabelMetrics>(
     TAB_LABEL_DEFAULT_METRICS,
   );
-  const [isHovered, setIsHovered] = useState(false);
   const measureOverflow = useCallback(() => {
     const viewport = viewportRef.current;
     const content = contentRef.current;
     if (viewport === null || content === null) {
-      return TAB_LABEL_DEFAULT_METRICS;
+      return;
     }
     const contentWidth = content.scrollWidth;
+    const isOverflowing =
+      contentWidth > viewport.clientWidth + TAB_LABEL_EDGE_EPSILON_PX;
     const next = {
-      isOverflowing:
-        contentWidth > viewport.clientWidth + TAB_LABEL_EDGE_EPSILON_PX,
-      marqueeDuration: `${(
-        (contentWidth + TAB_LABEL_MARQUEE_GAP_PX) /
-        TAB_LABEL_MARQUEE_SPEED_PX_PER_SECOND
-      ).toFixed(1)}s`,
+      isOverflowing,
+      marqueeDuration: isOverflowing
+        ? `${(
+            (contentWidth + TAB_LABEL_MARQUEE_GAP_PX) /
+            TAB_LABEL_MARQUEE_SPEED_PX_PER_SECOND
+          ).toFixed(1)}s`
+        : "0s",
     };
     setMetrics((current) =>
       current.isOverflowing === next.isOverflowing &&
@@ -114,13 +116,11 @@ function WorkspaceTabLabel({ label }: { label: string }) {
         ? current
         : next,
     );
-    return next;
   }, []);
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
     if (viewport === null) return;
-    setIsHovered(false);
     measureOverflow();
 
     if (typeof ResizeObserver === "undefined") return;
@@ -141,28 +141,18 @@ function WorkspaceTabLabel({ label }: { label: string }) {
       data-workspace-tab-label
       className={cn(
         "block max-w-28 overflow-hidden whitespace-nowrap",
-        metrics.isOverflowing &&
-          (isHovered
-            ? "workspace-tab-label-fade-both"
-            : "workspace-tab-label-fade-end"),
+        metrics.isOverflowing && "workspace-tab-label-fade-end",
       )}
       title={label}
-      onMouseEnter={() => setIsHovered(metrics.isOverflowing)}
-      onMouseLeave={() => setIsHovered(false)}
     >
       <span
-        className={cn(
-          "flex w-max gap-6",
-          metrics.isOverflowing &&
-            isHovered &&
-            "workspace-tab-label-marquee-track",
-        )}
+        className="workspace-tab-label-marquee-track flex w-max gap-6"
         style={marqueeStyle}
       >
         <span ref={contentRef} className="shrink-0">
           {label}
         </span>
-        {metrics.isOverflowing && isHovered ? (
+        {metrics.isOverflowing ? (
           <span aria-hidden="true" className="shrink-0">
             {label}
           </span>
@@ -253,7 +243,10 @@ function WorkspaceTabStrip({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-5 shrink-0 opacity-70 hover:opacity-100"
+                  className={cn(
+                    "size-5 shrink-0 opacity-0 transition-opacity group-hover:opacity-70 group-focus-within:opacity-70 hover:opacity-100 focus-visible:opacity-100",
+                    isActive && "opacity-70",
+                  )}
                   aria-label={`Close ${tab.label}`}
                   onClick={() => onCloseTab(tab.id)}
                 >

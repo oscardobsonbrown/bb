@@ -202,11 +202,22 @@ describe("ThreadWorkspaceShell", () => {
 
   it("offers a close control for every main workspace tab", () => {
     const { onCloseMainTab } = renderShell();
+    const activeCloseButton = screen.getByRole("button", {
+      name: "Close Chat",
+    });
+    const inactiveCloseButton = screen.getByRole("button", {
+      name: "Close README.md",
+    });
 
-    fireEvent.click(screen.getByRole("button", { name: "Close Chat" }));
-    fireEvent.click(
-      screen.getByRole("button", { name: "Close README.md" }),
+    expect(activeCloseButton.classList).toContain("opacity-70");
+    expect(inactiveCloseButton.classList).toContain("opacity-0");
+    expect(inactiveCloseButton.classList).toContain("group-hover:opacity-70");
+    expect(inactiveCloseButton.classList).toContain(
+      "group-focus-within:opacity-70",
     );
+
+    fireEvent.click(activeCloseButton);
+    fireEvent.click(inactiveCloseButton);
 
     expect(onCloseMainTab).toHaveBeenNthCalledWith(1, "chat");
     expect(onCloseMainTab).toHaveBeenNthCalledWith(2, "file:README.md");
@@ -297,8 +308,6 @@ describe("ThreadWorkspaceShell", () => {
       throw new Error("Expected the workspace tab label to be observed");
     }
 
-    fireEvent.mouseEnter(label);
-    expect(label.classList).toContain("workspace-tab-label-fade-both");
     const track = label.firstElementChild;
     if (!(track instanceof HTMLElement)) {
       throw new Error("Expected a workspace tab label track");
@@ -309,19 +318,11 @@ describe("ThreadWorkspaceShell", () => {
     );
     expect(screen.getAllByText(title)).toHaveLength(2);
 
-    fireEvent.mouseLeave(label);
-    expect(label.classList).toContain("workspace-tab-label-fade-end");
-    expect(track.classList).not.toContain("workspace-tab-label-marquee-track");
-
     scrollWidth = clientWidth;
     act(() =>
       labelResizeObserver.callback([], labelResizeObserver.observer),
     );
     expect(label.classList).not.toContain("workspace-tab-label-fade-end");
-    expect(label.classList).not.toContain("workspace-tab-label-fade-both");
-
-    fireEvent.mouseEnter(label);
-    expect(track.classList).not.toContain("workspace-tab-label-marquee-track");
     expect(screen.getAllByText(title)).toHaveLength(1);
   });
 

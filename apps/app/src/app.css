@@ -625,7 +625,7 @@
     );
   }
 
-  .workspace-tab-label-fade-both {
+  .workspace-tab-label-fade-end:hover {
     -webkit-mask-image: linear-gradient(
       to right,
       transparent 0,
@@ -642,7 +642,8 @@
     );
   }
 
-  .workspace-tab-label-marquee-track {
+  .workspace-tab-label-fade-end:hover
+    > .workspace-tab-label-marquee-track {
     animation: workspace-tab-label-marquee
       var(--workspace-tab-marquee-duration) linear infinite;
     will-change: transform;
@@ -655,8 +656,10 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .workspace-tab-label-marquee-track {
+    .workspace-tab-label-fade-end:hover
+      > .workspace-tab-label-marquee-track {
       animation: none;
+      will-change: auto;
     }
   }
 
