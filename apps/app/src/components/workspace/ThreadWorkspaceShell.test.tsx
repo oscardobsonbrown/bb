@@ -2,7 +2,7 @@
 
 import type { ImperativePanelHandle } from "react-resizable-panels";
 import type { ReactNode } from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ThreadWorkspaceShell } from "./ThreadWorkspaceShell";
 
@@ -102,9 +102,14 @@ const LOWER_TABS = [
 afterEach(() => {
   cleanup();
   localStorage.clear();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
-function renderShell(isCompact = false) {
+function renderShell(
+  isCompact = false,
+  mainTabs: readonly (typeof MAIN_TABS)[number][] = MAIN_TABS,
+) {
   const onCreateChat = vi.fn();
   const onSelectMainTab = vi.fn();
   render(
@@ -116,7 +121,7 @@ function renderShell(isCompact = false) {
       lowerContent={<div>terminal viewport</div>}
       lowerTabs={LOWER_TABS}
       mainContent={<div>conversation</div>}
-      mainTabs={MAIN_TABS}
+      mainTabs={mainTabs}
       onCreateChat={onCreateChat}
       onSelectLowerTab={vi.fn()}
       onSelectMainTab={onSelectMainTab}
@@ -227,6 +232,90 @@ describe("ThreadWorkspaceShell", () => {
     expect(
       tab.querySelector("span > span")?.nextElementSibling?.textContent,
     ).toBe("README.md");
+  });
+
+  it("caps long tab titles, fades the clipped edge, and reveals the end on hover", () => {
+    const title =
+      "Investigate why navigation tabs consume the full workspace width";
+    const clientWidth = 160;
+    let scrollWidth = 320;
+    const observed: Element[] = [];
+    const resizeObservers = new Map<
+      Element,
+      { callback: ResizeObserverCallback; observer: ResizeObserver }
+    >();
+    vi.stubGlobal(
+      "ResizeObserver",
+      function MockResizeObserver(callback: ResizeObserverCallback) {
+        const observer: ResizeObserver = {
+          disconnect: vi.fn(),
+          observe: vi.fn((element: Element) => {
+            observed.push(element);
+            resizeObservers.set(element, { callback, observer });
+          }),
+          unobserve: vi.fn(),
+        };
+        return observer;
+      },
+    );
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(
+      () => clientWidth,
+    );
+    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(
+      () => scrollWidth,
+    );
+    renderShell(false, [{ id: "chat", label: title }]);
+
+    const text = screen.getByText(title);
+    const label = text.closest("[data-workspace-tab-label]");
+    if (!(label instanceof HTMLElement)) {
+      throw new Error("Expected a workspace tab label");
+    }
+    expect(label.classList).toContain("max-w-40");
+    expect(label.getAttribute("title")).toBe(title);
+    expect(label.classList).toContain("workspace-tab-label-fade-end");
+    expect(observed).toContain(label);
+    expect(observed).toContain(text);
+    const labelResizeObserver = resizeObservers.get(label);
+    if (labelResizeObserver === undefined) {
+      throw new Error("Expected the workspace tab label to be observed");
+    }
+
+    const scrollTo = vi.fn();
+    Object.defineProperties(label, {
+      scrollLeft: { configurable: true, value: 0, writable: true },
+      scrollTo: {
+        configurable: true,
+        value: scrollTo,
+      },
+    });
+
+    fireEvent.mouseEnter(label);
+    expect(scrollTo).toHaveBeenCalledWith({ behavior: "smooth", left: 160 });
+
+    label.scrollLeft = 80;
+    fireEvent.scroll(label);
+    expect(label.classList).toContain("workspace-tab-label-fade-both");
+
+    label.scrollLeft = 160;
+    fireEvent.scroll(label);
+    expect(label.classList).toContain("workspace-tab-label-fade-start");
+
+    label.scrollLeft = 0;
+    scrollWidth = clientWidth;
+    act(() =>
+      labelResizeObserver.callback([], labelResizeObserver.observer),
+    );
+    expect(label.classList).not.toContain("workspace-tab-label-fade-start");
+    expect(label.classList).not.toContain("workspace-tab-label-fade-end");
+    expect(label.classList).not.toContain("workspace-tab-label-fade-both");
+
+    scrollTo.mockClear();
+    fireEvent.mouseEnter(label);
+    expect(scrollTo).not.toHaveBeenCalled();
+
+    fireEvent.mouseLeave(label);
+    expect(scrollTo).toHaveBeenLastCalledWith({ behavior: "smooth", left: 0 });
   });
 
   it("does not force the split sidebar into compact layouts", () => {

@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent,
@@ -67,6 +68,114 @@ export const WORKSPACE_SIDEBAR_MAX_PERCENT = 55;
 export const WORKSPACE_SIDEBAR_SPLIT_DEFAULT_PERCENT = 50;
 export const WORKSPACE_SIDEBAR_REGION_MIN_PERCENT = 25;
 const WORKSPACE_SIDEBAR_LAYOUT_STORAGE_ID = "bb.thread.workspace.sidebar";
+const TAB_LABEL_EDGE_EPSILON_PX = 1;
+
+interface TabLabelOverflowState {
+  canScrollStart: boolean;
+  canScrollEnd: boolean;
+}
+
+const TAB_LABEL_NOT_OVERFLOWING: TabLabelOverflowState = {
+  canScrollStart: false,
+  canScrollEnd: false,
+};
+
+function getTabLabelFadeClass({
+  canScrollStart,
+  canScrollEnd,
+}: TabLabelOverflowState): string | undefined {
+  if (canScrollStart && canScrollEnd) {
+    return "workspace-tab-label-fade-both";
+  }
+  if (canScrollStart) return "workspace-tab-label-fade-start";
+  if (canScrollEnd) return "workspace-tab-label-fade-end";
+  return undefined;
+}
+
+function WorkspaceTabLabel({ label }: { label: string }) {
+  const viewportRef = useRef<HTMLSpanElement>(null);
+  const contentRef = useRef<HTMLSpanElement>(null);
+  const maxScrollLeftRef = useRef(0);
+  const overflowRef = useRef(TAB_LABEL_NOT_OVERFLOWING);
+  const [overflow, setOverflow] = useState<TabLabelOverflowState>(
+    TAB_LABEL_NOT_OVERFLOWING,
+  );
+  const updateOverflow = useCallback(() => {
+    const viewport = viewportRef.current;
+    if (viewport === null) return;
+    const maxScrollLeft = maxScrollLeftRef.current;
+    const canScrollStart = viewport.scrollLeft > TAB_LABEL_EDGE_EPSILON_PX;
+    const canScrollEnd =
+      viewport.scrollLeft < maxScrollLeft - TAB_LABEL_EDGE_EPSILON_PX;
+    const current = overflowRef.current;
+    if (
+      current.canScrollStart === canScrollStart &&
+      current.canScrollEnd === canScrollEnd
+    ) {
+      return;
+    }
+    const next = { canScrollStart, canScrollEnd };
+    overflowRef.current = next;
+    setOverflow(next);
+  }, []);
+  const measureOverflow = useCallback(() => {
+    const viewport = viewportRef.current;
+    if (viewport === null) return 0;
+    maxScrollLeftRef.current = Math.max(
+      0,
+      viewport.scrollWidth - viewport.clientWidth,
+    );
+    updateOverflow();
+    return maxScrollLeftRef.current;
+  }, [updateOverflow]);
+
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (viewport === null) return;
+    viewport.scrollLeft = 0;
+    measureOverflow();
+
+    if (typeof ResizeObserver === "undefined") return;
+    const resizeObserver = new ResizeObserver(measureOverflow);
+    resizeObserver.observe(viewport);
+    if (contentRef.current !== null) {
+      resizeObserver.observe(contentRef.current);
+    }
+    return () => resizeObserver.disconnect();
+  }, [label, measureOverflow]);
+
+  const scrollTo = (left: number) => {
+    const viewport = viewportRef.current;
+    if (viewport === null) return;
+    const reduceMotion =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    viewport.scrollTo({ behavior: reduceMotion ? "auto" : "smooth", left });
+  };
+  return (
+    <span
+      ref={viewportRef}
+      data-workspace-tab-label
+      className={cn(
+        "no-scrollbar block max-w-40 overflow-x-hidden whitespace-nowrap",
+        getTabLabelFadeClass(overflow),
+      )}
+      title={label}
+      onMouseEnter={() => {
+        const maxScrollLeft = measureOverflow();
+        if (maxScrollLeft > TAB_LABEL_EDGE_EPSILON_PX) {
+          scrollTo(maxScrollLeft);
+        }
+      }}
+      onMouseLeave={() => scrollTo(0)}
+      onScroll={updateOverflow}
+    >
+      <span ref={contentRef} className="block w-max">
+        {label}
+      </span>
+    </span>
+  );
+}
 
 function WorkspaceTabStrip({
   activeTabId,
@@ -141,7 +250,7 @@ function WorkspaceTabStrip({
                       className="size-1.5 shrink-0 rounded-full bg-current"
                     />
                   ) : null}
-                  <span>{tab.label}</span>
+                  <WorkspaceTabLabel label={tab.label} />
                 </span>
               </button>
               {tab.closeLabel && onCloseTab ? (
