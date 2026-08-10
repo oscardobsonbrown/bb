@@ -84,7 +84,6 @@ const MAIN_TABS = [
   {
     id: "file:README.md",
     label: "README.md",
-    closeLabel: "Close README.md",
     isDirty: true,
   },
 ];
@@ -111,6 +110,7 @@ function renderShell(
   mainTabs: readonly (typeof MAIN_TABS)[number][] = MAIN_TABS,
 ) {
   const onCreateChat = vi.fn();
+  const onCloseMainTab = vi.fn();
   const onSelectMainTab = vi.fn();
   render(
     <ThreadWorkspaceShell
@@ -122,6 +122,7 @@ function renderShell(
       lowerTabs={LOWER_TABS}
       mainContent={<div>conversation</div>}
       mainTabs={mainTabs}
+      onCloseMainTab={onCloseMainTab}
       onCreateChat={onCreateChat}
       onSelectLowerTab={vi.fn()}
       onSelectMainTab={onSelectMainTab}
@@ -131,7 +132,7 @@ function renderShell(
       upperTabs={UPPER_TABS}
     />,
   );
-  return { onCreateChat, onSelectMainTab };
+  return { onCloseMainTab, onCreateChat, onSelectMainTab };
 }
 
 describe("ThreadWorkspaceShell", () => {
@@ -197,6 +198,18 @@ describe("ThreadWorkspaceShell", () => {
       screen.getByRole("tab", { name: "README.md, unsaved changes" }),
     );
     expect(onSelectMainTab).toHaveBeenCalledWith("file:README.md");
+  });
+
+  it("offers a close control for every main workspace tab", () => {
+    const { onCloseMainTab } = renderShell();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close Chat" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Close README.md" }),
+    );
+
+    expect(onCloseMainTab).toHaveBeenNthCalledWith(1, "chat");
+    expect(onCloseMainTab).toHaveBeenNthCalledWith(2, "file:README.md");
   });
 
   it("creates a chat from the workspace tab strip", () => {

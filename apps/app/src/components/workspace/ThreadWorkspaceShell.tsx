@@ -22,7 +22,6 @@ import { Icon } from "@bb/shared-ui/icon";
 export interface WorkspaceTab {
   id: string;
   label: string;
-  closeLabel?: string;
   isDirty?: boolean;
 }
 
@@ -249,13 +248,13 @@ function WorkspaceTabStrip({
                   <WorkspaceTabLabel label={tab.label} />
                 </span>
               </button>
-              {tab.closeLabel && onCloseTab ? (
+              {onCloseTab ? (
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-5 opacity-70 hover:opacity-100"
-                  aria-label={tab.closeLabel}
+                  className="size-5 shrink-0 opacity-70 hover:opacity-100"
+                  aria-label={`Close ${tab.label}`}
                   onClick={() => onCloseTab(tab.id)}
                 >
                   <Icon name="X" className="size-3" />
