@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 
 import type { ComponentProps, ReactNode } from "react";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CompactViewportOverrideProvider } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { dispatchBrowserViewBoundsSync } from "@/lib/browser-view-bounds-sync";
+import { getProjectComposeRoutePath } from "@/lib/route-paths";
 import { ThreadDetailSecondaryContent } from "./ThreadDetailSecondaryContent";
 import {
   DefaultPaneContextProvider,
@@ -12,7 +13,7 @@ import {
   type PaneContextValue,
   type PaneSecondaryPanelViewModel,
 } from "./PaneContext";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 
 type ThreadDetailSecondaryContentProps = ComponentProps<
   typeof ThreadDetailSecondaryContent
@@ -187,9 +188,12 @@ interface QueuedAnimationFrames {
 }
 
 interface RenderThreadDetailArgs {
+  activePanelKind?: "git-diff" | "thread-info";
+  canUseGitUi?: boolean;
   isFocusedHosted?: boolean;
   isCompactViewport: boolean;
   isSecondaryPanelOpen: boolean;
+  onSecondaryPanelClose?: () => void;
   renderBrowserDeck: RenderBrowserDeck;
   threadId: string;
 }
@@ -213,28 +217,41 @@ function ThreadDetailTestPaneProvider({
   children: ReactNode;
   isFocusedHosted: boolean | undefined;
 }) {
+  let paneContent: ReactNode;
   if (isFocusedHosted === undefined) {
-    return (
-      <MemoryRouter>
-        <DefaultPaneContextProvider>{children}</DefaultPaneContextProvider>
-      </MemoryRouter>
+    paneContent = (
+      <DefaultPaneContextProvider>{children}</DefaultPaneContextProvider>
+    );
+  } else {
+    const value: PaneContextValue = {
+      paneId: "pane-test",
+      isFocused: isFocusedHosted,
+      isSplitPane: true,
+      secondaryPanelHost: hostedPaneRegistration,
+      reservesWindowPanelToggle: false,
+      onRequestClose: noop,
+      isMaximized: false,
+      onToggleMaximize: noop,
+      isBoundedPane: true,
+      isTopRow: true,
+      ownsWindowTopLeft: true,
+      navigateInPane: noop,
+    };
+    paneContent = (
+      <PaneContext.Provider value={value}>{children}</PaneContext.Provider>
     );
   }
-  const value: PaneContextValue = {
-    paneId: "pane-test",
-    isFocused: isFocusedHosted,
-    isSplitPane: true,
-    secondaryPanelHost: hostedPaneRegistration,
-    reservesWindowPanelToggle: false,
-    onRequestClose: noop,
-    isMaximized: false,
-    onToggleMaximize: noop,
-    isBoundedPane: true,
-    isTopRow: true,
-    ownsWindowTopLeft: true,
-    navigateInPane: noop,
-  };
-  return <PaneContext.Provider value={value}>{children}</PaneContext.Provider>;
+  return (
+    <MemoryRouter>
+      <LocationProbe />
+      {paneContent}
+    </MemoryRouter>
+  );
+}
+
+function LocationProbe() {
+  const location = useLocation();
+  return <output data-testid="location-pathname">{location.pathname}</output>;
 }
 
 function installAnimationFrameQueue(order?: string[]): QueuedAnimationFrames {
@@ -322,12 +339,15 @@ function createBrowserDeckRenderer(order?: string[]): RenderBrowserDeck {
 }
 
 function createProps({
+  activePanelKind = "thread-info",
+  canUseGitUi = false,
   isSecondaryPanelOpen,
+  onSecondaryPanelClose = noop,
   renderBrowserDeck,
   threadId,
 }: Omit<
   RenderThreadDetailArgs,
-  "isCompactViewport"
+  "isCompactViewport" | "isFocusedHosted"
 >): ThreadDetailSecondaryContentProps {
   return {
     footer: <div data-testid="footer" />,
@@ -365,14 +385,14 @@ function createProps({
     renderHostedPanel: (panel) => panel,
     secondaryPanel: {
       activeTab: isSecondaryPanelOpen
-        ? { id: "thread-info", kind: "thread-info" }
+        ? { id: activePanelKind, kind: activePanelKind }
         : null,
-      canUseGitUi: false,
+      canUseGitUi,
       fileTabs: [],
       isBrowserTabActive: true,
       isOpen: isSecondaryPanelOpen,
       onCollapse: noop,
-      onClose: noop,
+      onClose: onSecondaryPanelClose,
       onFileTabReorder: noop,
       onOpenNewTab: noop,
       onPanelChange: noop,
@@ -414,9 +434,8 @@ function createProps({
   };
 }
 
-function renderThreadDetail(args: RenderThreadDetailArgs) {
-  let renderArgs = args;
-  const view = render(
+function renderThreadDetailContent(renderArgs: RenderThreadDetailArgs) {
+  return (
     <CompactViewportOverrideProvider
       isCompactViewport={renderArgs.isCompactViewport}
     >
@@ -424,37 +443,22 @@ function renderThreadDetail(args: RenderThreadDetailArgs) {
         isFocusedHosted={renderArgs.isFocusedHosted}
       >
         <ThreadDetailSecondaryContent
-          {...createProps({
-            isSecondaryPanelOpen: renderArgs.isSecondaryPanelOpen,
-            renderBrowserDeck: renderArgs.renderBrowserDeck,
-            threadId: renderArgs.threadId,
-          })}
+          {...createProps(renderArgs)}
         />
       </ThreadDetailTestPaneProvider>
-    </CompactViewportOverrideProvider>,
+    </CompactViewportOverrideProvider>
   );
+}
+
+function renderThreadDetail(args: RenderThreadDetailArgs) {
+  let renderArgs = args;
+  const view = render(renderThreadDetailContent(renderArgs));
 
   return {
     ...view,
     rerenderWith(nextArgs: Partial<RenderThreadDetailArgs>) {
       renderArgs = { ...renderArgs, ...nextArgs };
-      view.rerender(
-        <CompactViewportOverrideProvider
-          isCompactViewport={renderArgs.isCompactViewport}
-        >
-          <ThreadDetailTestPaneProvider
-            isFocusedHosted={renderArgs.isFocusedHosted}
-          >
-            <ThreadDetailSecondaryContent
-              {...createProps({
-                isSecondaryPanelOpen: renderArgs.isSecondaryPanelOpen,
-                renderBrowserDeck: renderArgs.renderBrowserDeck,
-                threadId: renderArgs.threadId,
-              })}
-            />
-          </ThreadDetailTestPaneProvider>
-        </CompactViewportOverrideProvider>,
-      );
+      view.rerender(renderThreadDetailContent(renderArgs));
     },
   };
 }
@@ -552,6 +556,46 @@ describe("ThreadDetailSecondaryContent compact drawer settling", () => {
 
     expect(screen.getByRole("tab", { name: "Test thread" })).not.toBeNull();
     expect(screen.queryByRole("tab", { name: "Chat" })).toBeNull();
+  });
+
+  it("closes the chat tab back to the project surface", () => {
+    renderThreadDetail({
+      isCompactViewport: false,
+      isSecondaryPanelOpen: false,
+      renderBrowserDeck: createBrowserDeckRenderer(),
+      threadId: "thread-1",
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Close Test thread" }),
+    );
+
+    expect(screen.getByTestId("location-pathname").textContent).toBe(
+      getProjectComposeRoutePath("proj-test"),
+    );
+  });
+
+  it.each([
+    { activePanelKind: "git-diff" as const, label: "All changes" },
+    { activePanelKind: "thread-info" as const, label: "Info" },
+  ])("closes the $label view back to the chat tab", ({
+    activePanelKind,
+    label,
+  }) => {
+    const onSecondaryPanelClose = vi.fn();
+    renderThreadDetail({
+      activePanelKind,
+      canUseGitUi: true,
+      isCompactViewport: false,
+      isSecondaryPanelOpen: true,
+      onSecondaryPanelClose,
+      renderBrowserDeck: createBrowserDeckRenderer(),
+      threadId: "thread-1",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: `Close ${label}` }));
+
+    expect(onSecondaryPanelClose).toHaveBeenCalledOnce();
   });
 
   it("hides and restores native browser readiness as hosted pane focus changes", () => {

@@ -13,6 +13,7 @@ import {
   PanelGroup,
   type ImperativePanelGroupHandle,
 } from "react-resizable-panels";
+import { useNavigate } from "react-router-dom";
 import { ResponsiveDrawerShell } from "@bb/shared-ui/responsive-overlay";
 import { useIsCompactViewport } from "@bb/shared-ui/hooks/use-compact-viewport";
 import { Skeleton } from "@bb/shared-ui/skeleton";
@@ -66,6 +67,7 @@ import {
   PluginComposerHostScopeProvider,
   usePluginComposerHost,
 } from "@/components/plugin/plugin-composer-host";
+import { getProjectComposeRoutePath } from "@/lib/route-paths";
 
 const CLOSED_TIMELINE_PANEL_SIZE_PERCENT = 100;
 const COLLAPSED_TIMELINE_PANEL_SIZE_PERCENT = 0;
@@ -154,6 +156,7 @@ function ThreadDetailSecondaryContentBody({
   workspace,
 }: ThreadDetailSecondaryContentProps) {
   const { isFocused, paneId, secondaryPanelHost } = usePaneContext();
+  const navigate = useNavigate();
   const composerHost = usePluginComposerHost();
   const stableMetadata = metadata;
   const stableSecondaryPanel = secondaryPanel;
@@ -451,7 +454,6 @@ function ThreadDetailSecondaryContentBody({
       ...visibleFileTabs.map((tab) => ({
         id: tab.id,
         label: tab.filename,
-        closeLabel: `Close ${tab.filename}`,
         isDirty: tab.isDirty,
       })),
     ];
@@ -474,6 +476,14 @@ function ThreadDetailSecondaryContentBody({
       visibleFileTabs.find((tab) => tab.id === tabId)?.onSelect();
     };
     const closeMainTab = (tabId: string) => {
+      if (tabId === "chat") {
+        navigate(getProjectComposeRoutePath(stableMetadata.thread.projectId));
+        return;
+      }
+      if (tabId === "changes" || tabId === "thread-info") {
+        selectMainTab("chat");
+        return;
+      }
       visibleFileTabs.find((tab) => tab.id === tabId)?.onClose();
     };
     const mainContent =

@@ -610,6 +610,59 @@
     display: none;
   }
 
+  .workspace-tab-label-fade-end {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      black 0,
+      black calc(100% - 0.75rem),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to right,
+      black 0,
+      black calc(100% - 0.75rem),
+      transparent 100%
+    );
+  }
+
+  .workspace-tab-label-fade-end:hover {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      black 0.75rem,
+      black calc(100% - 0.75rem),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      black 0.75rem,
+      black calc(100% - 0.75rem),
+      transparent 100%
+    );
+  }
+
+  .workspace-tab-label-fade-end:hover
+    > .workspace-tab-label-marquee-track {
+    animation: workspace-tab-label-marquee
+      var(--workspace-tab-marquee-duration) linear infinite;
+    will-change: transform;
+  }
+
+  @keyframes workspace-tab-label-marquee {
+    to {
+      transform: translateX(calc(-50% - 0.75rem));
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .workspace-tab-label-fade-end:hover
+      > .workspace-tab-label-marquee-track {
+      animation: none;
+      will-change: auto;
+    }
+  }
+
   /*
    * Keep reading surfaces visually quiet at rest while preserving the native
    * scroll container, its hit area, and its layout geometry. The scroll owner

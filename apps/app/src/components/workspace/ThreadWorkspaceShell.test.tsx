@@ -2,7 +2,7 @@
 
 import type { ImperativePanelHandle } from "react-resizable-panels";
 import type { ReactNode } from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ThreadWorkspaceShell } from "./ThreadWorkspaceShell";
 
@@ -84,7 +84,6 @@ const MAIN_TABS = [
   {
     id: "file:README.md",
     label: "README.md",
-    closeLabel: "Close README.md",
     isDirty: true,
   },
 ];
@@ -102,10 +101,16 @@ const LOWER_TABS = [
 afterEach(() => {
   cleanup();
   localStorage.clear();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
-function renderShell(isCompact = false) {
+function renderShell(
+  isCompact = false,
+  mainTabs: readonly (typeof MAIN_TABS)[number][] = MAIN_TABS,
+) {
   const onCreateChat = vi.fn();
+  const onCloseMainTab = vi.fn();
   const onSelectMainTab = vi.fn();
   render(
     <ThreadWorkspaceShell
@@ -116,7 +121,8 @@ function renderShell(isCompact = false) {
       lowerContent={<div>terminal viewport</div>}
       lowerTabs={LOWER_TABS}
       mainContent={<div>conversation</div>}
-      mainTabs={MAIN_TABS}
+      mainTabs={mainTabs}
+      onCloseMainTab={onCloseMainTab}
       onCreateChat={onCreateChat}
       onSelectLowerTab={vi.fn()}
       onSelectMainTab={onSelectMainTab}
@@ -126,7 +132,7 @@ function renderShell(isCompact = false) {
       upperTabs={UPPER_TABS}
     />,
   );
-  return { onCreateChat, onSelectMainTab };
+  return { onCloseMainTab, onCreateChat, onSelectMainTab };
 }
 
 describe("ThreadWorkspaceShell", () => {
@@ -194,6 +200,29 @@ describe("ThreadWorkspaceShell", () => {
     expect(onSelectMainTab).toHaveBeenCalledWith("file:README.md");
   });
 
+  it("offers a close control for every main workspace tab", () => {
+    const { onCloseMainTab } = renderShell();
+    const activeCloseButton = screen.getByRole("button", {
+      name: "Close Chat",
+    });
+    const inactiveCloseButton = screen.getByRole("button", {
+      name: "Close README.md",
+    });
+
+    expect(activeCloseButton.classList).toContain("opacity-70");
+    expect(inactiveCloseButton.classList).toContain("opacity-0");
+    expect(inactiveCloseButton.classList).toContain("group-hover:opacity-70");
+    expect(inactiveCloseButton.classList).toContain(
+      "group-focus-within:opacity-70",
+    );
+
+    fireEvent.click(activeCloseButton);
+    fireEvent.click(inactiveCloseButton);
+
+    expect(onCloseMainTab).toHaveBeenNthCalledWith(1, "chat");
+    expect(onCloseMainTab).toHaveBeenNthCalledWith(2, "file:README.md");
+  });
+
   it("creates a chat from the workspace tab strip", () => {
     const { onCreateChat } = renderShell();
     const workspaceTabs = screen.getByRole("tablist", {
@@ -227,6 +256,74 @@ describe("ThreadWorkspaceShell", () => {
     expect(
       tab.querySelector("span > span")?.nextElementSibling?.textContent,
     ).toBe("README.md");
+  });
+
+  it("caps long tab titles and loops them steadily on hover", () => {
+    const title =
+      "Investigate why navigation tabs consume the full workspace width";
+    const clientWidth = 112;
+    let scrollWidth = 240;
+    const observed: Element[] = [];
+    const resizeObservers = new Map<
+      Element,
+      { callback: ResizeObserverCallback; observer: ResizeObserver }
+    >();
+    vi.stubGlobal(
+      "ResizeObserver",
+      function MockResizeObserver(callback: ResizeObserverCallback) {
+        const observer: ResizeObserver = {
+          disconnect: vi.fn(),
+          observe: vi.fn((element: Element) => {
+            observed.push(element);
+            resizeObservers.set(element, { callback, observer });
+          }),
+          unobserve: vi.fn(),
+        };
+        return observer;
+      },
+    );
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(
+      () => clientWidth,
+    );
+    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(
+      () => scrollWidth,
+    );
+    renderShell(false, [{ id: "chat", label: title }]);
+
+    const text = screen.getAllByText(title)[0];
+    if (text === undefined) {
+      throw new Error("Expected a workspace tab title");
+    }
+    const label = text.closest("[data-workspace-tab-label]");
+    if (!(label instanceof HTMLElement)) {
+      throw new Error("Expected a workspace tab label");
+    }
+    expect(label.classList).toContain("max-w-28");
+    expect(label.getAttribute("title")).toBe(title);
+    expect(label.classList).toContain("workspace-tab-label-fade-end");
+    expect(observed).toContain(label);
+    expect(observed).toContain(text);
+    const labelResizeObserver = resizeObservers.get(label);
+    if (labelResizeObserver === undefined) {
+      throw new Error("Expected the workspace tab label to be observed");
+    }
+
+    const track = label.firstElementChild;
+    if (!(track instanceof HTMLElement)) {
+      throw new Error("Expected a workspace tab label track");
+    }
+    expect(track.classList).toContain("workspace-tab-label-marquee-track");
+    expect(track.style.getPropertyValue("--workspace-tab-marquee-duration")).toBe(
+      "8.8s",
+    );
+    expect(screen.getAllByText(title)).toHaveLength(2);
+
+    scrollWidth = clientWidth;
+    act(() =>
+      labelResizeObserver.callback([], labelResizeObserver.observer),
+    );
+    expect(label.classList).not.toContain("workspace-tab-label-fade-end");
+    expect(screen.getAllByText(title)).toHaveLength(1);
   });
 
   it("does not force the split sidebar into compact layouts", () => {

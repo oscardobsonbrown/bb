@@ -2,8 +2,10 @@ import {
   createContext,
   useCallback,
   useContext,
+  useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
   type ReactNode,
 } from "react";
@@ -20,7 +22,6 @@ import { Icon } from "@bb/shared-ui/icon";
 export interface WorkspaceTab {
   id: string;
   label: string;
-  closeLabel?: string;
   isDirty?: boolean;
 }
 
@@ -67,6 +68,99 @@ export const WORKSPACE_SIDEBAR_MAX_PERCENT = 55;
 export const WORKSPACE_SIDEBAR_SPLIT_DEFAULT_PERCENT = 50;
 export const WORKSPACE_SIDEBAR_REGION_MIN_PERCENT = 25;
 const WORKSPACE_SIDEBAR_LAYOUT_STORAGE_ID = "bb.thread.workspace.sidebar";
+const TAB_LABEL_EDGE_EPSILON_PX = 1;
+const TAB_LABEL_MARQUEE_GAP_PX = 24;
+const TAB_LABEL_MARQUEE_SPEED_PX_PER_SECOND = 30;
+
+interface TabLabelMetrics {
+  isOverflowing: boolean;
+  marqueeDuration: string;
+}
+
+interface TabLabelMarqueeStyle extends CSSProperties {
+  "--workspace-tab-marquee-duration": string;
+}
+
+const TAB_LABEL_DEFAULT_METRICS: TabLabelMetrics = {
+  isOverflowing: false,
+  marqueeDuration: "0s",
+};
+
+function WorkspaceTabLabel({ label }: { label: string }) {
+  const viewportRef = useRef<HTMLSpanElement>(null);
+  const contentRef = useRef<HTMLSpanElement>(null);
+  const [metrics, setMetrics] = useState<TabLabelMetrics>(
+    TAB_LABEL_DEFAULT_METRICS,
+  );
+  const measureOverflow = useCallback(() => {
+    const viewport = viewportRef.current;
+    const content = contentRef.current;
+    if (viewport === null || content === null) {
+      return;
+    }
+    const contentWidth = content.scrollWidth;
+    const isOverflowing =
+      contentWidth > viewport.clientWidth + TAB_LABEL_EDGE_EPSILON_PX;
+    const next = {
+      isOverflowing,
+      marqueeDuration: isOverflowing
+        ? `${(
+            (contentWidth + TAB_LABEL_MARQUEE_GAP_PX) /
+            TAB_LABEL_MARQUEE_SPEED_PX_PER_SECOND
+          ).toFixed(1)}s`
+        : "0s",
+    };
+    setMetrics((current) =>
+      current.isOverflowing === next.isOverflowing &&
+      current.marqueeDuration === next.marqueeDuration
+        ? current
+        : next,
+    );
+  }, []);
+
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (viewport === null) return;
+    measureOverflow();
+
+    if (typeof ResizeObserver === "undefined") return;
+    const resizeObserver = new ResizeObserver(measureOverflow);
+    resizeObserver.observe(viewport);
+    if (contentRef.current !== null) {
+      resizeObserver.observe(contentRef.current);
+    }
+    return () => resizeObserver.disconnect();
+  }, [label, measureOverflow]);
+
+  const marqueeStyle: TabLabelMarqueeStyle = {
+    "--workspace-tab-marquee-duration": metrics.marqueeDuration,
+  };
+  return (
+    <span
+      ref={viewportRef}
+      data-workspace-tab-label
+      className={cn(
+        "block max-w-28 overflow-hidden whitespace-nowrap",
+        metrics.isOverflowing && "workspace-tab-label-fade-end",
+      )}
+      title={label}
+    >
+      <span
+        className="workspace-tab-label-marquee-track flex w-max gap-6"
+        style={marqueeStyle}
+      >
+        <span ref={contentRef} className="shrink-0">
+          {label}
+        </span>
+        {metrics.isOverflowing ? (
+          <span aria-hidden="true" className="shrink-0">
+            {label}
+          </span>
+        ) : null}
+      </span>
+    </span>
+  );
+}
 
 function WorkspaceTabStrip({
   activeTabId,
@@ -141,16 +235,19 @@ function WorkspaceTabStrip({
                       className="size-1.5 shrink-0 rounded-full bg-current"
                     />
                   ) : null}
-                  <span>{tab.label}</span>
+                  <WorkspaceTabLabel label={tab.label} />
                 </span>
               </button>
-              {tab.closeLabel && onCloseTab ? (
+              {onCloseTab ? (
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-5 opacity-70 hover:opacity-100"
-                  aria-label={tab.closeLabel}
+                  className={cn(
+                    "size-5 shrink-0 opacity-0 transition-opacity group-hover:opacity-70 group-focus-within:opacity-70 hover:opacity-100 focus-visible:opacity-100",
+                    isActive && "opacity-70",
+                  )}
+                  aria-label={`Close ${tab.label}`}
                   onClick={() => onCloseTab(tab.id)}
                 >
                   <Icon name="X" className="size-3" />
