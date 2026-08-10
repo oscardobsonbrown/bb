@@ -234,11 +234,11 @@ describe("ThreadWorkspaceShell", () => {
     ).toBe("README.md");
   });
 
-  it("caps long tab titles, fades the clipped edge, and reveals the end on hover", () => {
+  it("caps long tab titles and loops them steadily on hover", () => {
     const title =
       "Investigate why navigation tabs consume the full workspace width";
-    const clientWidth = 160;
-    let scrollWidth = 320;
+    const clientWidth = 112;
+    let scrollWidth = 240;
     const observed: Element[] = [];
     const resizeObservers = new Map<
       Element,
@@ -266,12 +266,15 @@ describe("ThreadWorkspaceShell", () => {
     );
     renderShell(false, [{ id: "chat", label: title }]);
 
-    const text = screen.getByText(title);
+    const text = screen.getAllByText(title)[0];
+    if (text === undefined) {
+      throw new Error("Expected a workspace tab title");
+    }
     const label = text.closest("[data-workspace-tab-label]");
     if (!(label instanceof HTMLElement)) {
       throw new Error("Expected a workspace tab label");
     }
-    expect(label.classList).toContain("max-w-40");
+    expect(label.classList).toContain("max-w-28");
     expect(label.getAttribute("title")).toBe(title);
     expect(label.classList).toContain("workspace-tab-label-fade-end");
     expect(observed).toContain(label);
@@ -281,41 +284,32 @@ describe("ThreadWorkspaceShell", () => {
       throw new Error("Expected the workspace tab label to be observed");
     }
 
-    const scrollTo = vi.fn();
-    Object.defineProperties(label, {
-      scrollLeft: { configurable: true, value: 0, writable: true },
-      scrollTo: {
-        configurable: true,
-        value: scrollTo,
-      },
-    });
-
     fireEvent.mouseEnter(label);
-    expect(scrollTo).toHaveBeenCalledWith({ behavior: "smooth", left: 160 });
-
-    label.scrollLeft = 80;
-    fireEvent.scroll(label);
     expect(label.classList).toContain("workspace-tab-label-fade-both");
+    const track = label.firstElementChild;
+    if (!(track instanceof HTMLElement)) {
+      throw new Error("Expected a workspace tab label track");
+    }
+    expect(track.classList).toContain("workspace-tab-label-marquee-track");
+    expect(track.style.getPropertyValue("--workspace-tab-marquee-duration")).toBe(
+      "8.8s",
+    );
+    expect(screen.getAllByText(title)).toHaveLength(2);
 
-    label.scrollLeft = 160;
-    fireEvent.scroll(label);
-    expect(label.classList).toContain("workspace-tab-label-fade-start");
+    fireEvent.mouseLeave(label);
+    expect(label.classList).toContain("workspace-tab-label-fade-end");
+    expect(track.classList).not.toContain("workspace-tab-label-marquee-track");
 
-    label.scrollLeft = 0;
     scrollWidth = clientWidth;
     act(() =>
       labelResizeObserver.callback([], labelResizeObserver.observer),
     );
-    expect(label.classList).not.toContain("workspace-tab-label-fade-start");
     expect(label.classList).not.toContain("workspace-tab-label-fade-end");
     expect(label.classList).not.toContain("workspace-tab-label-fade-both");
 
-    scrollTo.mockClear();
     fireEvent.mouseEnter(label);
-    expect(scrollTo).not.toHaveBeenCalled();
-
-    fireEvent.mouseLeave(label);
-    expect(scrollTo).toHaveBeenLastCalledWith({ behavior: "smooth", left: 0 });
+    expect(track.classList).not.toContain("workspace-tab-label-marquee-track");
+    expect(screen.getAllByText(title)).toHaveLength(1);
   });
 
   it("does not force the split sidebar into compact layouts", () => {

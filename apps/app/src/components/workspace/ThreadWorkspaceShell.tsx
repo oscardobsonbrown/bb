@@ -5,6 +5,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
   type ReactNode,
 } from "react";
@@ -69,70 +70,58 @@ export const WORKSPACE_SIDEBAR_SPLIT_DEFAULT_PERCENT = 50;
 export const WORKSPACE_SIDEBAR_REGION_MIN_PERCENT = 25;
 const WORKSPACE_SIDEBAR_LAYOUT_STORAGE_ID = "bb.thread.workspace.sidebar";
 const TAB_LABEL_EDGE_EPSILON_PX = 1;
+const TAB_LABEL_MARQUEE_GAP_PX = 24;
+const TAB_LABEL_MARQUEE_SPEED_PX_PER_SECOND = 30;
 
-interface TabLabelOverflowState {
-  canScrollStart: boolean;
-  canScrollEnd: boolean;
+interface TabLabelMetrics {
+  isOverflowing: boolean;
+  marqueeDuration: string;
 }
 
-const TAB_LABEL_NOT_OVERFLOWING: TabLabelOverflowState = {
-  canScrollStart: false,
-  canScrollEnd: false,
+interface TabLabelMarqueeStyle extends CSSProperties {
+  "--workspace-tab-marquee-duration": string;
+}
+
+const TAB_LABEL_DEFAULT_METRICS: TabLabelMetrics = {
+  isOverflowing: false,
+  marqueeDuration: "0s",
 };
-
-function getTabLabelFadeClass({
-  canScrollStart,
-  canScrollEnd,
-}: TabLabelOverflowState): string | undefined {
-  if (canScrollStart && canScrollEnd) {
-    return "workspace-tab-label-fade-both";
-  }
-  if (canScrollStart) return "workspace-tab-label-fade-start";
-  if (canScrollEnd) return "workspace-tab-label-fade-end";
-  return undefined;
-}
 
 function WorkspaceTabLabel({ label }: { label: string }) {
   const viewportRef = useRef<HTMLSpanElement>(null);
   const contentRef = useRef<HTMLSpanElement>(null);
-  const maxScrollLeftRef = useRef(0);
-  const overflowRef = useRef(TAB_LABEL_NOT_OVERFLOWING);
-  const [overflow, setOverflow] = useState<TabLabelOverflowState>(
-    TAB_LABEL_NOT_OVERFLOWING,
+  const [metrics, setMetrics] = useState<TabLabelMetrics>(
+    TAB_LABEL_DEFAULT_METRICS,
   );
-  const updateOverflow = useCallback(() => {
-    const viewport = viewportRef.current;
-    if (viewport === null) return;
-    const maxScrollLeft = maxScrollLeftRef.current;
-    const canScrollStart = viewport.scrollLeft > TAB_LABEL_EDGE_EPSILON_PX;
-    const canScrollEnd =
-      viewport.scrollLeft < maxScrollLeft - TAB_LABEL_EDGE_EPSILON_PX;
-    const current = overflowRef.current;
-    if (
-      current.canScrollStart === canScrollStart &&
-      current.canScrollEnd === canScrollEnd
-    ) {
-      return;
-    }
-    const next = { canScrollStart, canScrollEnd };
-    overflowRef.current = next;
-    setOverflow(next);
-  }, []);
+  const [isHovered, setIsHovered] = useState(false);
   const measureOverflow = useCallback(() => {
     const viewport = viewportRef.current;
-    if (viewport === null) return 0;
-    maxScrollLeftRef.current = Math.max(
-      0,
-      viewport.scrollWidth - viewport.clientWidth,
+    const content = contentRef.current;
+    if (viewport === null || content === null) {
+      return TAB_LABEL_DEFAULT_METRICS;
+    }
+    const contentWidth = content.scrollWidth;
+    const next = {
+      isOverflowing:
+        contentWidth > viewport.clientWidth + TAB_LABEL_EDGE_EPSILON_PX,
+      marqueeDuration: `${(
+        (contentWidth + TAB_LABEL_MARQUEE_GAP_PX) /
+        TAB_LABEL_MARQUEE_SPEED_PX_PER_SECOND
+      ).toFixed(1)}s`,
+    };
+    setMetrics((current) =>
+      current.isOverflowing === next.isOverflowing &&
+      current.marqueeDuration === next.marqueeDuration
+        ? current
+        : next,
     );
-    updateOverflow();
-    return maxScrollLeftRef.current;
-  }, [updateOverflow]);
+    return next;
+  }, []);
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
     if (viewport === null) return;
-    viewport.scrollLeft = 0;
+    setIsHovered(false);
     measureOverflow();
 
     if (typeof ResizeObserver === "undefined") return;
@@ -144,34 +133,41 @@ function WorkspaceTabLabel({ label }: { label: string }) {
     return () => resizeObserver.disconnect();
   }, [label, measureOverflow]);
 
-  const scrollTo = (left: number) => {
-    const viewport = viewportRef.current;
-    if (viewport === null) return;
-    const reduceMotion =
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    viewport.scrollTo({ behavior: reduceMotion ? "auto" : "smooth", left });
+  const marqueeStyle: TabLabelMarqueeStyle = {
+    "--workspace-tab-marquee-duration": metrics.marqueeDuration,
   };
   return (
     <span
       ref={viewportRef}
       data-workspace-tab-label
       className={cn(
-        "no-scrollbar block max-w-40 overflow-x-hidden whitespace-nowrap",
-        getTabLabelFadeClass(overflow),
+        "block max-w-28 overflow-hidden whitespace-nowrap",
+        metrics.isOverflowing &&
+          (isHovered
+            ? "workspace-tab-label-fade-both"
+            : "workspace-tab-label-fade-end"),
       )}
       title={label}
-      onMouseEnter={() => {
-        const maxScrollLeft = measureOverflow();
-        if (maxScrollLeft > TAB_LABEL_EDGE_EPSILON_PX) {
-          scrollTo(maxScrollLeft);
-        }
-      }}
-      onMouseLeave={() => scrollTo(0)}
-      onScroll={updateOverflow}
+      onMouseEnter={() => setIsHovered(metrics.isOverflowing)}
+      onMouseLeave={() => setIsHovered(false)}
     >
-      <span ref={contentRef} className="block w-max">
-        {label}
+      <span
+        className={cn(
+          "flex w-max gap-6",
+          metrics.isOverflowing &&
+            isHovered &&
+            "workspace-tab-label-marquee-track",
+        )}
+        style={marqueeStyle}
+      >
+        <span ref={contentRef} className="shrink-0">
+          {label}
+        </span>
+        {metrics.isOverflowing && isHovered ? (
+          <span aria-hidden="true" className="shrink-0">
+            {label}
+          </span>
+        ) : null}
       </span>
     </span>
   );

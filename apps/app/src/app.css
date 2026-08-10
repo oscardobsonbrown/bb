@@ -625,21 +625,6 @@
     );
   }
 
-  .workspace-tab-label-fade-start {
-    -webkit-mask-image: linear-gradient(
-      to right,
-      transparent 0,
-      black 0.75rem,
-      black 100%
-    );
-    mask-image: linear-gradient(
-      to right,
-      transparent 0,
-      black 0.75rem,
-      black 100%
-    );
-  }
-
   .workspace-tab-label-fade-both {
     -webkit-mask-image: linear-gradient(
       to right,
@@ -655,6 +640,24 @@
       black calc(100% - 0.75rem),
       transparent 100%
     );
+  }
+
+  .workspace-tab-label-marquee-track {
+    animation: workspace-tab-label-marquee
+      var(--workspace-tab-marquee-duration) linear infinite;
+    will-change: transform;
+  }
+
+  @keyframes workspace-tab-label-marquee {
+    to {
+      transform: translateX(calc(-50% - 0.75rem));
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .workspace-tab-label-marquee-track {
+      animation: none;
+    }
   }
 
   /*
