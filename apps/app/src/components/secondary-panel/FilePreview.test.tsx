@@ -166,6 +166,80 @@ describe("FilePreview", () => {
     ).toBe(true);
   });
 
+  it("switches Markdown between preview and an in-panel editor", () => {
+    render(
+      <FilePreview
+        editView={
+          <textarea
+            aria-label="Markdown editor"
+            defaultValue="# Unsaved draft"
+          />
+        }
+        path="README.md"
+        state={{
+          kind: "ready",
+          file: { name: "README.md", contents: "# Preview" },
+          lineRange: null,
+          textPreviewKind: "markdown",
+        }}
+      />,
+    );
+
+    const previewTab = screen.getByRole("tab", { name: "Preview" });
+    const editTab = screen.getByRole("tab", { name: "Edit" });
+    const tabList = screen.getByRole("tablist", {
+      name: "Markdown view mode",
+    });
+    const editPanel = screen
+      .getAllByRole("tabpanel", { hidden: true })
+      .find((panel) => panel.getAttribute("aria-label") === "Edit");
+    const previewPanel = screen.getByRole("tabpanel", { name: "Preview" });
+    expect(screen.queryByRole("button", { name: "Copy file path" })).toBeNull();
+    const floatingTabs = tabList.closest("[data-file-preview-floating-tabs]");
+    expect(floatingTabs).not.toBeNull();
+    expect(floatingTabs?.classList.contains("absolute")).toBe(true);
+    expect(previewTab.getAttribute("aria-selected")).toBe("true");
+    expect(editTab.getAttribute("aria-selected")).toBe("false");
+    expect(previewPanel.hasAttribute("hidden")).toBe(false);
+    expect(previewPanel.classList.contains("overflow-auto")).toBe(true);
+    expect(editPanel?.hasAttribute("hidden")).toBe(true);
+    expect(
+      previewPanel.querySelector(".markdown-document-shell"),
+    ).not.toBeNull();
+    expect(editPanel?.classList.contains("markdown-document-shell")).toBe(
+      false,
+    );
+    expect(previewPanel.contains(tabList)).toBe(false);
+    expect(editPanel?.contains(tabList)).toBe(false);
+    expect(
+      screen.queryByRole("textbox", { name: "Markdown editor" }),
+    ).toBeNull();
+
+    previewTab.focus();
+    fireEvent.keyDown(previewTab, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(editTab);
+    expect(editTab.getAttribute("aria-selected")).toBe("true");
+    fireEvent.keyDown(editTab, { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(previewTab);
+
+    fireEvent.click(editTab);
+    const editor = screen.getByRole("textbox", {
+      name: "Markdown editor",
+    });
+    expect(editor).toBeInstanceOf(HTMLTextAreaElement);
+    if (!(editor instanceof HTMLTextAreaElement)) {
+      throw new Error("Expected the Markdown editor to be a textarea");
+    }
+    expect(editTab.getAttribute("aria-selected")).toBe("true");
+    expect(editor.value).toBe("# Unsaved draft");
+
+    fireEvent.change(editor, { target: { value: "# Changed locally" } });
+    fireEvent.click(previewTab);
+    fireEvent.click(editTab);
+
+    expect(editor.value).toBe("# Changed locally");
+  });
+
   it("disables the manual refresh action while a refresh is running", () => {
     render(
       <FilePreview
@@ -377,7 +451,7 @@ describe("FilePreview", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Raw" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Raw" }));
 
     await screen.findByTestId("pierre-file");
     expect(

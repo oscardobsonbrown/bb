@@ -175,7 +175,11 @@ import {
   openUrlInExternalBrowser,
   UrlOpenRoutingProvider,
 } from "@/lib/url-open-routing";
-import { getFilePreviewLineRangeStart } from "@/lib/file-preview";
+import {
+  getFilePreviewLineRangeStart,
+  isEditableMarkdownFilePreview,
+  isMarkdownFilePreviewPath,
+} from "@/lib/file-preview";
 import { getBrowserUrlHost } from "@/lib/browser-url";
 import {
   useThreadStorageBrowser,
@@ -2607,6 +2611,38 @@ function ThreadDetailViewInternal(props: ThreadDetailViewInternalProps) {
       onOpenBrowser={handleOpenBrowser}
       onStartTerminal={canCreateTerminal ? handleStartTerminal : undefined}
       pluginActions={pluginPanelActions}
+    />
+  ) : activeWorkspaceFilePath &&
+    environment?.path &&
+    environment.hostId &&
+    thread.environmentId &&
+    isMarkdownFilePreviewPath(activeWorkspaceFilePath) ? (
+    <WorkspaceFilePreviewTabContent
+      activePath={activeWorkspaceFilePath}
+      copyPath={workspaceFileCopyPath}
+      editView={
+        isEditableMarkdownFilePreview({
+          path: activeWorkspaceFilePath,
+          source: activeWorkspaceFileSource,
+          statusLabel: activeWorkspaceFileStatusLabel,
+        }) ? (
+          <WorkspaceFileEditor
+            environmentId={thread.environmentId}
+            hostId={environment.hostId}
+            path={activeWorkspaceFilePath}
+            workspaceRootPath={environment.path}
+            onDirtyChange={handleActiveWorkspaceFileDirtyChange}
+          />
+        ) : undefined
+      }
+      environmentId={thread.environmentId}
+      lineRange={activeWorkspaceFileLineRange}
+      markdownLinkRouting={workspaceMarkdownLinkRouting}
+      onOpenInEditor={handleOpenFileInEditor}
+      onSelectionAddToChat={handleSelectionAddToChat}
+      source={activeWorkspaceFileSource}
+      statusLabel={activeWorkspaceFileStatusLabel}
+      threadId={thread.id}
     />
   ) : activeWorkspaceFilePath &&
     environment?.path &&

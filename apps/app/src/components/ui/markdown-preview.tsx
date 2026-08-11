@@ -78,6 +78,7 @@ import {
   type MarkdownMessageDirectives,
   type MountedMessageDirective,
 } from "./markdown-message-directives.js";
+import { isMarkdownFilePreviewPath } from "@/lib/file-preview";
 import { normalizePromptBlockquoteBoundaries } from "./markdown-prompt-blockquote-boundaries.js";
 import { MarkdownMermaidDiagram } from "./markdown-mermaid-diagram.js";
 import type { PromptTextMention } from "@bb/domain";
@@ -538,10 +539,6 @@ function buildLocalAwareUrlTransform({
   };
 }
 
-function hasMarkdownFileExtension(path: string): boolean {
-  return /\.(?:md|markdown)$/iu.test(path);
-}
-
 function resolveInlineCodeMarkdownFileHref({
   codeText,
   localFileRouting,
@@ -564,7 +561,7 @@ function resolveInlineCodeMarkdownFileHref({
     href: codeText,
   });
   if (absoluteLink !== null) {
-    return hasMarkdownFileExtension(absoluteLink.path) ? codeText : null;
+    return isMarkdownFilePreviewPath(absoluteLink.path) ? codeText : null;
   }
 
   if (localFileRouting.relativeLinks === undefined) {
@@ -583,7 +580,7 @@ function resolveInlineCodeMarkdownFileHref({
     absoluteLinks: localFileRouting.absoluteLinks,
     href: resolvedHref,
   });
-  return resolvedLink !== null && hasMarkdownFileExtension(resolvedLink.path)
+  return resolvedLink !== null && isMarkdownFilePreviewPath(resolvedLink.path)
     ? resolvedHref
     : null;
 }
