@@ -44,6 +44,7 @@ import {
 } from "./markdown-code-block.js";
 import { highlightMarkdownCode } from "./markdown-code-highlight.js";
 import "./markdown-code-highlight.css";
+import "./markdown-document.css";
 import { normalizeLocalFileMarkdownLinks } from "./markdown-local-file-link-normalize.js";
 import {
   buildLocalFileAnchorHref,
@@ -77,6 +78,7 @@ import {
   type MarkdownMessageDirectives,
   type MountedMessageDirective,
 } from "./markdown-message-directives.js";
+import { isMarkdownFilePreviewPath } from "@/lib/file-preview";
 import { normalizePromptBlockquoteBoundaries } from "./markdown-prompt-blockquote-boundaries.js";
 import { MarkdownMermaidDiagram } from "./markdown-mermaid-diagram.js";
 import type { PromptTextMention } from "@bb/domain";
@@ -537,10 +539,6 @@ function buildLocalAwareUrlTransform({
   };
 }
 
-function hasMarkdownFileExtension(path: string): boolean {
-  return /\.(?:md|markdown)$/iu.test(path);
-}
-
 function resolveInlineCodeMarkdownFileHref({
   codeText,
   localFileRouting,
@@ -563,7 +561,7 @@ function resolveInlineCodeMarkdownFileHref({
     href: codeText,
   });
   if (absoluteLink !== null) {
-    return hasMarkdownFileExtension(absoluteLink.path) ? codeText : null;
+    return isMarkdownFilePreviewPath(absoluteLink.path) ? codeText : null;
   }
 
   if (localFileRouting.relativeLinks === undefined) {
@@ -582,7 +580,7 @@ function resolveInlineCodeMarkdownFileHref({
     absoluteLinks: localFileRouting.absoluteLinks,
     href: resolvedHref,
   });
-  return resolvedLink !== null && hasMarkdownFileExtension(resolvedLink.path)
+  return resolvedLink !== null && isMarkdownFilePreviewPath(resolvedLink.path)
     ? resolvedHref
     : null;
 }
@@ -731,7 +729,10 @@ function MarkdownCode({
     }
 
     return (
-      <div className="my-2 overflow-hidden rounded-md border border-border bg-surface-recessed">
+      <div
+        className="my-2 overflow-hidden rounded-md border border-border bg-surface-recessed"
+        data-markdown-code-block=""
+      >
         <div className="flex items-center justify-between pl-3 pr-1.5 pt-1.5">
           <span className="font-mono text-xs uppercase text-muted-foreground">
             {language ?? ""}
@@ -1184,7 +1185,10 @@ function MarkdownFrontmatter({ source }: { source: string }) {
     return null;
   }
   return (
-    <div className="mb-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 border-l-2 border-border pl-3 text-xs leading-relaxed text-muted-foreground">
+    <div
+      className="mb-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 border-l-2 border-border pl-3 text-xs leading-relaxed text-muted-foreground"
+      data-markdown-frontmatter=""
+    >
       {lines.map((line, index) => {
         const separator = line.indexOf(":");
         if (separator > 0 && !/^[\s-]/.test(line)) {

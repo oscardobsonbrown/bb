@@ -85,6 +85,12 @@ export interface GetFilePreviewLineRangeStartArgs {
   lineRange: FilePreviewLineRange | null;
 }
 
+export interface IsEditableMarkdownFilePreviewArgs {
+  path: string;
+  source: EnvironmentFilePreviewSource | null;
+  statusLabel: WorkspaceFilePreviewStatusLabel | null;
+}
+
 export interface WorkspaceFileTabState {
   lineRange: FilePreviewLineRange | null;
   path: string;
@@ -190,10 +196,22 @@ function decodeDeclaredTextContent(contentBytes: Uint8Array): string | null {
   return content.includes(NULL_CHARACTER) ? null : content;
 }
 
-function hasMarkdownExtension(path: string): boolean {
+export function isMarkdownFilePreviewPath(path: string): boolean {
   const normalizedPath = path.toLowerCase();
   return MARKDOWN_FILE_EXTENSIONS.some((extension) =>
     normalizedPath.endsWith(extension),
+  );
+}
+
+export function isEditableMarkdownFilePreview({
+  path,
+  source,
+  statusLabel,
+}: IsEditableMarkdownFilePreviewArgs): boolean {
+  return (
+    isMarkdownFilePreviewPath(path) &&
+    source?.kind === "working-tree" &&
+    statusLabel === null
   );
 }
 
@@ -219,8 +237,8 @@ export function isMarkdownFilePreview(preview: FilePreview): boolean {
   return (
     preview.kind === "text" &&
     (MARKDOWN_MIME_TYPES.has(preview.mimeType) ||
-      hasMarkdownExtension(preview.path) ||
-      (preview.name ? hasMarkdownExtension(preview.name) : false))
+      isMarkdownFilePreviewPath(preview.path) ||
+      (preview.name ? isMarkdownFilePreviewPath(preview.name) : false))
   );
 }
 

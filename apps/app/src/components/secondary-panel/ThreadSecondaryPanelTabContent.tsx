@@ -64,6 +64,7 @@ export interface ThreadInfoTabContentProps {
 export interface WorkspaceFilePreviewTabContentProps {
   activePath: string;
   copyPath?: string | null;
+  editView?: ReactNode;
   environmentId?: string | null;
   lineRange: FilePreviewLineRange | null;
   markdownLinkRouting?: MarkdownLinkRouting;
@@ -313,6 +314,7 @@ export function ThreadInfoTabContent({
 export function WorkspaceFilePreviewTabContent({
   activePath,
   copyPath = null,
+  editView,
   environmentId,
   lineRange,
   markdownLinkRouting,
@@ -334,6 +336,7 @@ export function WorkspaceFilePreviewTabContent({
     <SecondaryPanelFilePreview
       activePath={activePath}
       copyPath={copyPath}
+      editView={editView}
       error={workspaceFilePreviewError}
       filePreview={workspaceFilePreview}
       htmlPreviewUrl={

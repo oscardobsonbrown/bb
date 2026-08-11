@@ -1,7 +1,10 @@
 import {
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -12,7 +15,10 @@ import type { SelectedLineRange, SupportedLanguages } from "@pierre/diffs";
 import type { UrlTransform } from "react-markdown";
 import { Button } from "@bb/shared-ui/button";
 import { usePierreLineSelectionActions } from "@/components/git-diff/PierreLineSelectionActions.js";
-import { COARSE_POINTER_TEXT_SM_CLASS } from "@bb/shared-ui/coarse-pointer-sizing";
+import {
+  COARSE_POINTER_TEXT_BASE_CLASS,
+  COARSE_POINTER_TEXT_SM_CLASS,
+} from "@bb/shared-ui/coarse-pointer-sizing";
 import { EmptyStatePanel } from "@bb/shared-ui/empty-state";
 import { CopyButton } from "@/components/ui/copy-button.js";
 import { Icon } from "@bb/shared-ui/icon";
@@ -84,6 +90,7 @@ export interface FilePreviewProps {
   state: FilePreviewState;
   path: string;
   copyPath?: string | null;
+  editView?: ReactNode;
   headerMode?: FilePreviewHeaderMode;
   onSelectionAddToChat?: (text: string) => void;
   onOpenInEditor?: (path: string) => void;
@@ -123,6 +130,17 @@ interface FilePreviewHeaderProps {
   onLineOverflowModeChange: CodeOverflowModeChangeHandler;
   viewMode: FilePreviewViewMode;
   onViewModeChange: (mode: FilePreviewViewMode) => void;
+  previewPanelId: string;
+  sourcePanelId: string;
+}
+
+interface FilePreviewViewTabsProps {
+  toggleKind: FilePreviewToggleKind;
+  viewMode: FilePreviewViewMode;
+  onViewModeChange: (mode: FilePreviewViewMode) => void;
+  previewPanelId: string;
+  sourcePanelId: string;
+  sourceViewLabel: "Edit" | "Raw";
 }
 
 interface FilePreviewLineWrapButtonProps {
@@ -431,6 +449,7 @@ export function FilePreview({
   state,
   path,
   copyPath = null,
+  editView,
   headerMode = "file",
   onSelectionAddToChat,
   onOpenInEditor,
@@ -439,9 +458,13 @@ export function FilePreview({
   markdownLinkRouting,
   statusLabel = null,
 }: FilePreviewProps) {
-  const toggleKind = getFilePreviewToggleKind(state);
+  const hasEditView = editView !== undefined;
+  const toggleKind = hasEditView ? "markdown" : getFilePreviewToggleKind(state);
   const filePreviewLineRange = getFilePreviewLineRange(state);
   const rawContents = getRawFilePreviewContents(state);
+  const viewPanelId = useId();
+  const previewPanelId = `${viewPanelId}-preview`;
+  const sourcePanelId = `${viewPanelId}-source`;
   const [viewMode, setViewMode] = useState<FilePreviewViewMode>(
     getInitialFilePreviewViewMode({
       lineRange: filePreviewLineRange,
@@ -450,6 +473,9 @@ export function FilePreview({
   );
   const [lineOverflowMode, setLineOverflowMode] = useState<CodeOverflowMode>(
     DEFAULT_CODE_OVERFLOW_MODE,
+  );
+  const [mountedEditViewPath, setMountedEditViewPath] = useState<string | null>(
+    null,
   );
   // Each new file opens in the appropriate default mode; the user re-toggles
   // per file rather than carrying their last choice across unrelated files.
@@ -467,12 +493,20 @@ export function FilePreview({
     (state.kind === "html" && viewMode === "preview");
   const bodyViewMode: FilePreviewViewMode =
     toggleKind === null ? "preview" : viewMode;
-  const usesCodeLayout = usesCodeViewLayout(state, bodyViewMode);
+  const handleViewModeChange = (mode: FilePreviewViewMode) => {
+    if (hasEditView && mode === "source") {
+      setMountedEditViewPath(path);
+    }
+    setViewMode(mode);
+  };
+  const shouldMountEditView = hasEditView && mountedEditViewPath === path;
+  const usesCodeLayout =
+    !hasEditView && usesCodeViewLayout(state, bodyViewMode);
   const showLineOverflowToggle = usesCodeLayout;
-  // The markdown preview renders on a raised "paper" surface that should fill
-  // the panel to the bottom even for short documents. `min-h-full` (vs the
-  // iframe layout's `h-full min-h-0`) keeps the column growable, so long
-  // documents still scroll the outer panel rather than an inner box.
+  // The Markdown document should fill the panel to the bottom even when it is
+  // short. `min-h-full` (vs the iframe layout's `h-full min-h-0`) keeps the
+  // column growable, so long documents still scroll the outer panel rather
+  // than an inner box.
   const usesMarkdownPreviewLayout =
     state.kind === "ready" &&
     state.textPreviewKind === "markdown" &&
@@ -487,23 +521,53 @@ export function FilePreview({
     state.kind === "ready" &&
     state.textPreviewKind === "csv" &&
     bodyViewMode === "preview";
-  const usesFullHeightLayout = usesIframeLayout || usesCsvPreviewLayout;
+  const usesFullHeightLayout =
+    hasEditView || usesIframeLayout || usesCsvPreviewLayout;
   const usesContentHeightLayout = usesCodeLayout || usesMarkdownPreviewLayout;
+  const renderBody = (mode: FilePreviewViewMode) => (
+    <FilePreviewBody
+      state={state}
+      path={path}
+      lineOverflowMode={lineOverflowMode}
+      viewMode={mode}
+      markdownLinkRouting={markdownLinkRouting}
+      onSelectionAddToChat={onSelectionAddToChat}
+    />
+  );
 
   // Establish a `@container/page` scope so MarkdownPreview's `100cqw`-based
   // table breakout sizes against this panel, not the viewport.
   return (
     <div
-      className={
+      className={cn(
+        "@container/page",
+        hasEditView && "relative overflow-hidden",
         usesFullHeightLayout
-          ? "@container/page flex h-full min-h-0 flex-col"
+          ? "flex h-full min-h-0 flex-col"
           : usesContentHeightLayout
-            ? "@container/page flex min-h-full flex-col"
-            : "@container/page min-h-full"
-      }
+            ? "flex min-h-full flex-col"
+            : "min-h-full",
+      )}
       style={FILE_PREVIEW_WRAPPER_STYLE}
     >
-      {headerMode === "file" ? (
+      {hasEditView ? (
+        <div
+          className="pointer-events-none absolute right-3 top-2 z-10"
+          data-file-preview-floating-tabs
+        >
+          <div className="pointer-events-auto">
+            <FilePreviewViewTabs
+              toggleKind="markdown"
+              viewMode={viewMode}
+              onViewModeChange={handleViewModeChange}
+              previewPanelId={previewPanelId}
+              sourcePanelId={sourcePanelId}
+              sourceViewLabel="Edit"
+            />
+          </div>
+        </div>
+      ) : null}
+      {headerMode === "file" && !hasEditView ? (
         <FilePreviewHeader
           path={path}
           copyPath={copyPath}
@@ -517,17 +581,51 @@ export function FilePreview({
           lineOverflowMode={lineOverflowMode}
           onLineOverflowModeChange={setLineOverflowMode}
           viewMode={viewMode}
-          onViewModeChange={setViewMode}
+          onViewModeChange={handleViewModeChange}
+          previewPanelId={previewPanelId}
+          sourcePanelId={sourcePanelId}
         />
       ) : null}
-      <FilePreviewBody
-        state={state}
-        path={path}
-        lineOverflowMode={lineOverflowMode}
-        viewMode={bodyViewMode}
-        markdownLinkRouting={markdownLinkRouting}
-        onSelectionAddToChat={onSelectionAddToChat}
-      />
+      {toggleKind !== null ? (
+        <>
+          <div
+            id={previewPanelId}
+            role="tabpanel"
+            aria-label="Preview"
+            hidden={bodyViewMode !== "preview"}
+            className={
+              bodyViewMode === "preview"
+                ? hasEditView
+                  ? "min-h-0 flex-1 overflow-auto"
+                  : "contents"
+                : "hidden"
+            }
+          >
+            {hasEditView || bodyViewMode === "preview"
+              ? renderBody("preview")
+              : null}
+          </div>
+          <div
+            id={sourcePanelId}
+            role="tabpanel"
+            aria-label={hasEditView ? "Edit" : "Raw"}
+            hidden={bodyViewMode !== "source"}
+            className={
+              bodyViewMode === "source"
+                ? "flex min-h-0 flex-1 flex-col"
+                : "hidden"
+            }
+          >
+            {shouldMountEditView
+              ? editView
+              : bodyViewMode === "source"
+                ? renderBody("source")
+                : null}
+          </div>
+        </>
+      ) : (
+        renderBody(bodyViewMode)
+      )}
     </div>
   );
 }
@@ -625,6 +723,8 @@ function FilePreviewHeader({
   onLineOverflowModeChange,
   viewMode,
   onViewModeChange,
+  previewPanelId,
+  sourcePanelId,
 }: FilePreviewHeaderProps) {
   const openShortcut = useAppCommandShortcut("workspace.openPreferred");
   const showHeaderControls = showLineOverflowToggle || toggleKind !== null;
@@ -729,42 +829,106 @@ function FilePreviewHeader({
               onLineOverflowModeChange={onLineOverflowModeChange}
             />
             {toggleKind !== null ? (
-              <div
-                className="inline-flex shrink-0 items-center gap-0.5 rounded-md border border-border p-0.5"
-                role="tablist"
-                aria-label={getToggleAriaLabel(toggleKind)}
-              >
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    "h-5 rounded-sm px-2 text-muted-foreground max-md:pointer-coarse:h-9",
-                    COARSE_POINTER_TEXT_SM_CLASS,
-                  )}
-                  onClick={() => onViewModeChange("preview")}
-                  aria-pressed={viewMode === "preview"}
-                >
-                  Preview
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    "h-5 rounded-sm px-2 text-muted-foreground max-md:pointer-coarse:h-9",
-                    COARSE_POINTER_TEXT_SM_CLASS,
-                  )}
-                  onClick={() => onViewModeChange("source")}
-                  aria-pressed={viewMode === "source"}
-                >
-                  Raw
-                </Button>
-              </div>
+              <FilePreviewViewTabs
+                toggleKind={toggleKind}
+                viewMode={viewMode}
+                onViewModeChange={onViewModeChange}
+                previewPanelId={previewPanelId}
+                sourcePanelId={sourcePanelId}
+                sourceViewLabel="Raw"
+              />
             ) : null}
           </div>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function FilePreviewViewTabs({
+  toggleKind,
+  viewMode,
+  onViewModeChange,
+  previewPanelId,
+  sourcePanelId,
+  sourceViewLabel,
+}: FilePreviewViewTabsProps) {
+  const handleViewModeKeyDown = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+  ) => {
+    let nextMode: FilePreviewViewMode | null = null;
+    if (event.key === "Home") {
+      nextMode = "preview";
+    } else if (event.key === "End") {
+      nextMode = "source";
+    } else if (
+      event.key === "ArrowLeft" ||
+      event.key === "ArrowRight" ||
+      event.key === "ArrowUp" ||
+      event.key === "ArrowDown"
+    ) {
+      nextMode = viewMode === "preview" ? "source" : "preview";
+    }
+    if (nextMode === null) return;
+
+    event.preventDefault();
+    onViewModeChange(nextMode);
+    const nextTab = event.currentTarget.parentElement?.querySelector(
+      `[data-file-preview-view-mode="${nextMode}"]`,
+    );
+    if (nextTab instanceof HTMLElement) {
+      nextTab.focus();
+    }
+  };
+
+  return (
+    <div
+      className="inline-flex shrink-0 items-center rounded-xl bg-surface-recessed/60 p-1"
+      role="tablist"
+      aria-label={getToggleAriaLabel(toggleKind)}
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className={cn(
+          "h-8 rounded-lg px-3 font-medium shadow-none max-md:pointer-coarse:h-10",
+          viewMode === "preview"
+            ? "bg-state-hover text-foreground hover:bg-state-hover"
+            : "text-muted-foreground hover:bg-transparent hover:text-foreground",
+          COARSE_POINTER_TEXT_BASE_CLASS,
+        )}
+        onClick={() => onViewModeChange("preview")}
+        onKeyDown={handleViewModeKeyDown}
+        data-file-preview-view-mode="preview"
+        role="tab"
+        aria-controls={previewPanelId}
+        aria-selected={viewMode === "preview"}
+        tabIndex={viewMode === "preview" ? 0 : -1}
+      >
+        Preview
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className={cn(
+          "h-8 rounded-lg px-3 font-medium shadow-none max-md:pointer-coarse:h-10",
+          viewMode === "source"
+            ? "bg-state-hover text-foreground hover:bg-state-hover"
+            : "text-muted-foreground hover:bg-transparent hover:text-foreground",
+          COARSE_POINTER_TEXT_BASE_CLASS,
+        )}
+        onClick={() => onViewModeChange("source")}
+        onKeyDown={handleViewModeKeyDown}
+        data-file-preview-view-mode="source"
+        role="tab"
+        aria-controls={sourcePanelId}
+        aria-selected={viewMode === "source"}
+        tabIndex={viewMode === "source" ? 0 : -1}
+      >
+        {sourceViewLabel}
+      </Button>
     </div>
   );
 }
@@ -893,9 +1057,10 @@ function MarkdownFilePreview({
       className="contents"
       onSelectionAddToChat={onSelectionAddToChat}
     >
-      <div className="flex-auto bg-background px-4 py-4">
+      <div className="markdown-document-shell flex-auto bg-background">
         <MarkdownPreview
           allowHtml
+          className="markdown-document"
           content={file.contents}
           urlTransform={urlTransform}
           linkRouting={markdownLinkRouting}

@@ -3,6 +3,7 @@ import {
   areEnvironmentFilePreviewSourcesEqual,
   buildFilePreview,
   isCsvFilePreview,
+  isEditableMarkdownFilePreview,
   isMarkdownFilePreview,
   normalizeFilePreviewMimeType,
 } from "./file-preview";
@@ -183,6 +184,44 @@ describe("file-preview", () => {
     expect(isMarkdownFilePreview(markdownByPath)).toBe(true);
     expect(isMarkdownFilePreview(markdownByMime)).toBe(true);
     expect(isMarkdownFilePreview(plainText)).toBe(false);
+  });
+
+  it("only offers Markdown editing for current working-tree files", () => {
+    expect(
+      isEditableMarkdownFilePreview({
+        path: "README.md",
+        source: { kind: "working-tree" },
+        statusLabel: null,
+      }),
+    ).toBe(true);
+    expect(
+      isEditableMarkdownFilePreview({
+        path: "README.md",
+        source: { kind: "working-tree" },
+        statusLabel: "deleted",
+      }),
+    ).toBe(false);
+    expect(
+      isEditableMarkdownFilePreview({
+        path: "README.md",
+        source: { kind: "head" },
+        statusLabel: "deleted",
+      }),
+    ).toBe(false);
+    expect(
+      isEditableMarkdownFilePreview({
+        path: "README.md",
+        source: { kind: "merge-base", ref: "abc123" },
+        statusLabel: "deleted",
+      }),
+    ).toBe(false);
+    expect(
+      isEditableMarkdownFilePreview({
+        path: "notes.txt",
+        source: { kind: "working-tree" },
+        statusLabel: null,
+      }),
+    ).toBe(false);
   });
 
   it("detects CSV text previews by extension and mime type", () => {

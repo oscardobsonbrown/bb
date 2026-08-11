@@ -1,6 +1,8 @@
+import type { ReactNode } from "react";
 import {
   FilePreview as FilePreviewSurface,
   type FilePreviewFile,
+  type FilePreviewProps,
   type TextFilePreviewKind,
 } from "./FilePreview";
 import type { MarkdownLinkRouting } from "@/components/ui/markdown-link-routing.js";
@@ -26,6 +28,7 @@ const GENERIC_HTML_IFRAME_SANDBOX = "allow-scripts";
 interface FilePreviewBaseProps {
   activePath: string;
   copyPath?: string | null;
+  editView?: ReactNode;
   error?: Error | null;
   filePreview: FilePreview | undefined;
   isLoading: boolean;
@@ -101,6 +104,7 @@ function getTextPreviewKind(
 export function SecondaryPanelFilePreview({
   activePath,
   copyPath = null,
+  editView,
   error,
   filePreview,
   htmlPreviewUrl = null,
@@ -113,17 +117,22 @@ export function SecondaryPanelFilePreview({
   onRefresh,
   statusLabel = null,
 }: SecondaryPanelFilePreviewProps) {
+  const previewSurfaceProps = {
+    copyPath,
+    editView,
+    isRefreshing,
+    onOpenInEditor,
+    onRefresh,
+    onSelectionAddToChat,
+    path: activePath,
+    statusLabel,
+  } satisfies Omit<FilePreviewProps, "markdownLinkRouting" | "state">;
+
   if (error) {
     const isNotFound = error instanceof HttpError && error.status === 404;
     return (
       <FilePreviewSurface
-        path={activePath}
-        copyPath={copyPath}
-        onSelectionAddToChat={onSelectionAddToChat}
-        onOpenInEditor={onOpenInEditor}
-        onRefresh={onRefresh}
-        isRefreshing={isRefreshing}
-        statusLabel={statusLabel}
+        {...previewSurfaceProps}
         state={{ kind: isNotFound ? "not-found" : "error" }}
       />
     );
@@ -132,13 +141,7 @@ export function SecondaryPanelFilePreview({
   if (isLoading || !filePreview || filePreview.path !== activePath) {
     return (
       <FilePreviewSurface
-        path={activePath}
-        copyPath={copyPath}
-        onSelectionAddToChat={onSelectionAddToChat}
-        onOpenInEditor={onOpenInEditor}
-        onRefresh={onRefresh}
-        isRefreshing={isRefreshing}
-        statusLabel={statusLabel}
+        {...previewSurfaceProps}
         state={{ kind: "loading" }}
       />
     );
@@ -148,13 +151,7 @@ export function SecondaryPanelFilePreview({
     if (filePreview.kind !== "text") {
       return (
         <FilePreviewSurface
-          path={activePath}
-          copyPath={copyPath}
-          onSelectionAddToChat={onSelectionAddToChat}
-          onOpenInEditor={onOpenInEditor}
-          onRefresh={onRefresh}
-          isRefreshing={isRefreshing}
-          statusLabel={statusLabel}
+          {...previewSurfaceProps}
           state={{
             kind: "iframe",
             sandbox: GENERIC_HTML_IFRAME_SANDBOX,
@@ -167,13 +164,7 @@ export function SecondaryPanelFilePreview({
 
     return (
       <FilePreviewSurface
-        path={activePath}
-        copyPath={copyPath}
-        onSelectionAddToChat={onSelectionAddToChat}
-        onOpenInEditor={onOpenInEditor}
-        onRefresh={onRefresh}
-        isRefreshing={isRefreshing}
-        statusLabel={statusLabel}
+        {...previewSurfaceProps}
         state={{
           kind: "html",
           file: buildTextPreviewFile({ activePath, filePreview }),
@@ -192,27 +183,15 @@ export function SecondaryPanelFilePreview({
     if (filePreview.content.length === 0) {
       return (
         <FilePreviewSurface
-          path={activePath}
-          copyPath={copyPath}
-          onSelectionAddToChat={onSelectionAddToChat}
-          onOpenInEditor={onOpenInEditor}
-          onRefresh={onRefresh}
-          isRefreshing={isRefreshing}
-          statusLabel={statusLabel}
+          {...previewSurfaceProps}
           state={{ kind: "empty" }}
         />
       );
     }
     return (
       <FilePreviewSurface
-        path={activePath}
-        copyPath={copyPath}
-        onSelectionAddToChat={onSelectionAddToChat}
-        onOpenInEditor={onOpenInEditor}
-        onRefresh={onRefresh}
-        isRefreshing={isRefreshing}
+        {...previewSurfaceProps}
         markdownLinkRouting={markdownLinkRouting}
-        statusLabel={statusLabel}
         state={{
           kind: "ready",
           lineRange,
@@ -226,13 +205,7 @@ export function SecondaryPanelFilePreview({
   if (filePreview.kind === "image") {
     return (
       <FilePreviewSurface
-        path={activePath}
-        copyPath={copyPath}
-        onSelectionAddToChat={onSelectionAddToChat}
-        onOpenInEditor={onOpenInEditor}
-        onRefresh={onRefresh}
-        isRefreshing={isRefreshing}
-        statusLabel={statusLabel}
+        {...previewSurfaceProps}
         state={{ kind: "image", url: filePreview.url }}
       />
     );
@@ -241,13 +214,7 @@ export function SecondaryPanelFilePreview({
   if (filePreview.kind === "video") {
     return (
       <FilePreviewSurface
-        path={activePath}
-        copyPath={copyPath}
-        onSelectionAddToChat={onSelectionAddToChat}
-        onOpenInEditor={onOpenInEditor}
-        onRefresh={onRefresh}
-        isRefreshing={isRefreshing}
-        statusLabel={statusLabel}
+        {...previewSurfaceProps}
         state={{ kind: "video", url: filePreview.url }}
       />
     );
@@ -255,13 +222,7 @@ export function SecondaryPanelFilePreview({
 
   return (
     <FilePreviewSurface
-      path={activePath}
-      copyPath={copyPath}
-      onSelectionAddToChat={onSelectionAddToChat}
-      onOpenInEditor={onOpenInEditor}
-      onRefresh={onRefresh}
-      isRefreshing={isRefreshing}
-      statusLabel={statusLabel}
+      {...previewSurfaceProps}
       state={{
         kind: "error",
         message: `Preview not available for ${filePreview.mimeType}.`,
